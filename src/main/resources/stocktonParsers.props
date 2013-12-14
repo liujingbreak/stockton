@@ -1,0 +1,12 @@
+plugin.stockton.StocktonJEditPlugin.activate=startup
+plugin.stockton.StocktonJEditPlugin.name=Stockton Plugin
+plugin.stockton.StocktonJEditPlugin.version=0.1
+plugin.stockton.StocktonJEditPlugin.jars=
+plugin.stockton.StocktonJEditPlugin.description=A bundle of language parsers
+plugin.stockton.StocktonJEditPlugin.author=Liu Jing
+plugin.stockton.StocktonJEditPlugin.depend.0=jedit 04.02.99.00
+plugin.stockton.StocktonJEditPlugin.depend.1=jdk 1.6
+plugin.stockton.StocktonJEditPlugin.depend.2=plugin sidekick.SideKickPlugin 1.4
+
+plugin.stockton.StocktonJEditPlugin.menu=aboutAction
+aboutAction.label = About

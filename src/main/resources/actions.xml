@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE ACTIONS SYSTEM "actions.dtd">
+
+<ACTIONS>
+	<ACTION NAME="aboutAction">
+		<CODE>
+			stockton.StocktonJEditPlugin.action("about");
+		</CODE>
+	</ACTION>
+</ACTIONS>
