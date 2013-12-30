@@ -17,13 +17,39 @@ public class JavaScriptInvoker{
 		jsname = jsFile;
 	}
 	
+	public void deployJsRes(String re, File target){
+		InputStream in = null;
+		FileOutputStream out = null;
+		try{
+			in = JavaScriptInvoker.class.getResourceAsStream(re);
+			out = new FileOutputStream(target);
+		
+			byte[] buf = new byte[ 1024 * 30 ];
+			int c = in.read(buf);
+			while( c >=0 ){
+				out.write(buf);
+				c = in.read(buf);
+			}
+		}catch(Exception ex){
+			log.log(Level.WARNING, "deploy failed: "+ target.getPath(), ex);
+		}finally{
+			try{
+			out.close();
+			in.close();
+			}catch(Exception e){
+			}
+		}
+	}
+	
 	public <T> T calljs(Class<T> retType, Object ... param){
 		Context cx = Context.enter();
 		try {
 			scope = cx.initStandardObjects();
-			File f = new File(jsname);
-			if(!f.exists()){
-				log.warning("Stockton Script File doesn't exist: "+ f.getPath());
+			File f = new File(System.getProperty("user.home"), jsname);
+			if(! f.exists()){
+				log.info("Stockton Script File doesn't exist: "+ f.getPath() +", copying the file.");
+				deployJsRes("/js/"+ jsname, f);
+				
 				return null;
 			}
 			long last = f.lastModified();

@@ -13,6 +13,6 @@ public class JsInvokerFactory{
 	
 	static class InvokerHolder{
 		static JavaScriptInvoker INSTANCE = new JavaScriptInvoker(
-			new File(System.getProperty("user.home"), "jedit-stockton.js").getPath());
+			"jedit-stockton.js");
 	}
 }
