@@ -11,9 +11,9 @@ try{
 	sp = Packages.stockton.sidekickParser
 	;
 	
-	var module = {};
+	var workdir = null;
 	
-	function loadFile(filepath){
+	/* function loadFile(filepath){
 		var s = "";
 		var input = new io.BufferedReader(new io.FileReader(filepath));
 		var line = input.readLine();
@@ -24,11 +24,12 @@ try{
 		}
 		eval(s);
 		log(module.exports);
-	}
+	} */
 	
 	(function setup(){
+		var workdir = new java.io.File(lan.System.getProperty("user.home"), ".stockton");
 		var fh = new logging.FileHandler(
-			new java.io.File( lan.System.getProperty("user.home"), "jedit-stockton.log"));
+			new java.io.File(workdir, "jedit-stockton.log"));
 		fh.setFormatter(new logging.SimpleFormatter());
 		logger.getHandlers().forEach(function(h){
 				out.println(">>>remove log file handler");
@@ -42,20 +43,10 @@ try{
 		logger.info(s);
 	}
 	
-	function require(fname){
-		var cx = moz.Context.enter(), scope;
-		try{
-			scope = cx.initStandardObjects();
-			
-		}catch(e){
-			logger.warning(e);
-		}finally{
-			moz.Context.exit();
-		}
-	}
+	
 	
 	function parsePEG(text){
-		var parser = module.exports;
+		var parser = require("pegjs-parser.js");
 		var r = parser.parse(text);
 		log("array? "+ (r instanceof Array));
 		
@@ -69,7 +60,8 @@ try{
 	
 	
 	log("Greeting from Javascript ...");
-	loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
+	invoker.greets();
+	//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
 	
 	
 	function buildSidekickTree(uiNode, result){
@@ -114,19 +106,30 @@ try{
 			actions.refresh();
 		},
 		about: function(){
-			loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
+			//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
+			__invoker.greets();
+			log("module"+ module);
 		}
 	};
 	
 	function main(arg, arg2, arg3){
-		log("Main function from Javascript - "+ arg);
-		if(actions[arg])
-			return actions[arg](arg2, arg3);
+		try{
+				log("Main function from Javascript - "+ arg);
+				if(actions[arg])
+					return actions[arg](arg2, arg3);
+		}catch(e){
+				out.println(e);
+				var msg = "";
+				for(f in e){
+						msg += "[" + f + "] " + e[f] + "\n";
+				}
+				logger.severe(e.toString() + "\n" + msg);
+		}
 	}
 	return main;
 }catch(e){
-	out.println(e);
-	logger.severe(e.toString());
+	java.lang.System.out.println(e);
+	//logger.severe(e.toString());
 	return "ERROR in Javascript file";
 }
 })();

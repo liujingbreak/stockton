@@ -12,22 +12,24 @@ public class JavaScriptInvoker{
 	private Scriptable scope;
 	private Function mainfun;
 	private String jsname;
+	private File tempFolder = new File(System.getProperty("user.home"), ".stockton");
+	private Script initScope;
 	
 	public JavaScriptInvoker(String jsFile){
 		jsname = jsFile;
 	}
 	
-	public void deployJsRes(String re, File target){
+	protected void deployJsRes(String re, File target){
 		InputStream in = null;
 		FileOutputStream out = null;
 		try{
 			in = JavaScriptInvoker.class.getResourceAsStream(re);
 			out = new FileOutputStream(target);
 		
-			byte[] buf = new byte[ 1024 * 30 ];
+			byte[] buf = new byte[ 1024 ];
 			int c = in.read(buf);
 			while( c >=0 ){
-				out.write(buf);
+				out.write(buf, 0, c);
 				c = in.read(buf);
 			}
 		}catch(Exception ex){
@@ -41,23 +43,72 @@ public class JavaScriptInvoker{
 		}
 	}
 	
+	public File loadJs(String jsFile){
+			if(! tempFolder.exists())
+					tempFolder.mkdirs();
+			File f = new File(tempFolder, jsFile);
+			if(! f.exists()){
+				log.info("Stockton Script File doesn't exist: "+ f.getPath() +", copying the file.");
+				deployJsRes("/js/"+ jsFile, f);
+			}
+			return f;
+	}
+	
+	public Object requireJs(String jsFile){
+			Context cx = Context.enter();
+			try{
+					cx.setOptimizationLevel(1);
+					File f = loadJs(jsFile);
+					Scriptable sp = cx.initStandardObjects();
+					setupInitScope(cx, sp);
+					cx.evaluateReader(sp, new FileReader(f), jsFile, 1, null);
+					Scriptable module = (Scriptable) ScriptableObject.getProperty(sp, "module");
+					return module.get("exports", module);
+			}catch(Exception ex){
+					log.log(Level.SEVERE, "", ex);
+					return null;
+			}finally {
+				Context.exit();
+			}
+	}
+	
+	protected void setupInitScope(Context cx, Scriptable sp)throws 
+	java.io.Unsupportejava.io.UnsupportedEncodingException,
+	java.io.IOException
+	{
+			if(initScope == null){
+					initScope = cx.compileReader(new InputStreamReader(
+							JavaScriptInvoker.class.getResourceAsStream("/js/initscope.js"), "utf-8"),
+							"/js/initscope.js", 1, null);
+			}
+			initScope.exec(cx, sp);
+			Object wrappedOut = cx.javaToJS(this, sp);
+			ScriptableObject.putProperty(sp, "__invoker", wrappedOut);
+	}
+	
+	public void greets(){
+			log.info("Greeting from JavaScriptInvoker");
+	}
+	
 	public <T> T calljs(Class<T> retType, Object ... param){
 		Context cx = Context.enter();
 		try {
-			scope = cx.initStandardObjects();
-			File f = new File(System.getProperty("user.home"), jsname);
-			if(! f.exists()){
-				log.info("Stockton Script File doesn't exist: "+ f.getPath() +", copying the file.");
-				deployJsRes("/js/"+ jsname, f);
-				
-				return null;
-			}
+			
+			if(! tempFolder.exists())
+					tempFolder.mkdirs();
+			File f = loadJs(jsname);
 			long last = f.lastModified();
 			if(last > jsTimestamp || mainfun == null){
+				// clean up
 				if( mainfun != null){
 					mainfun.call(cx, scope, null, new Object[]{"refresh"});
 				}
 				jsTimestamp = last;
+				// new scope
+				scope = cx.initStandardObjects();
+				
+				setupInitScope(cx, scope);
+			
 				Object r = cx.evaluateReader(scope, new FileReader(f), jsname, 1, null);
 				log.info("return js eval : "+r.getClass().getName());
 			
