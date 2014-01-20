@@ -73,7 +73,7 @@ public class JavaScriptInvoker{
 	}
 	
 	protected void setupInitScope(Context cx, Scriptable sp)throws 
-	java.io.Unsupportejava.io.UnsupportedEncodingException,
+	java.io.UnsupportedEncodingException,
 	java.io.IOException
 	{
 			if(initScope == null){
