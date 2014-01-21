@@ -108,7 +108,11 @@ try{
 		about: function(){
 			//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
 			__invoker.greets();
+			
 			log("module"+ module);
+		},
+		reloadjs:function(){
+				__invoker.clearJsExports();
 		}
 	};
 	

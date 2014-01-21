@@ -4,6 +4,7 @@ import org.mozilla.javascript.*;
 import java.io.*;
 import static java.lang.System.*;
 import java.util.logging.*;
+import java.util.*;
 
 public class JavaScriptInvoker{
 	private static Logger log = Logger.getLogger(JavaScriptInvoker.class.getName());
@@ -14,6 +15,7 @@ public class JavaScriptInvoker{
 	private String jsname;
 	private File tempFolder = new File(System.getProperty("user.home"), ".stockton");
 	private Script initScope;
+	private Map<String, Scriptable> jsExports = new HashMap();
 	
 	public JavaScriptInvoker(String jsFile){
 		jsname = jsFile;
@@ -55,6 +57,9 @@ public class JavaScriptInvoker{
 	}
 	
 	public Object requireJs(String jsFile){
+			Scriptable exp = jsExports.get(jsFile);
+			if(exp != null)
+					return exp;
 			Context cx = Context.enter();
 			try{
 					cx.setOptimizationLevel(1);
@@ -63,13 +68,20 @@ public class JavaScriptInvoker{
 					setupInitScope(cx, sp);
 					cx.evaluateReader(sp, new FileReader(f), jsFile, 1, null);
 					Scriptable module = (Scriptable) ScriptableObject.getProperty(sp, "module");
-					return module.get("exports", module);
+					exp = (Scriptable) module.get("exports", module);
+					jsExports.put(jsFile, exp);
+					return exp;
 			}catch(Exception ex){
 					log.log(Level.SEVERE, "", ex);
 					return null;
 			}finally {
 				Context.exit();
 			}
+	}
+	
+	public void clearJsExports(){
+			jsExports.clear();
+			log.fine("clear Js Exports");
 	}
 	
 	protected void setupInitScope(Context cx, Scriptable sp)throws 

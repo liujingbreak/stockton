@@ -8,4 +8,9 @@
 			stockton.StocktonJEditPlugin.action("about");
 		</CODE>
 	</ACTION>
+	<ACTION NAME="reloadJsAction">
+		<CODE>
+			stockton.StocktonJEditPlugin.action("reloadjs");
+		</CODE>
+	</ACTION>
 </ACTIONS>
