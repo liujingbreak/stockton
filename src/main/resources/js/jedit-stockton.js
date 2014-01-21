@@ -60,7 +60,7 @@ try{
 	
 	
 	log("Greeting from Javascript ...");
-	invoker.greets();
+	__invoker.greets();
 	//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
 	
 	
