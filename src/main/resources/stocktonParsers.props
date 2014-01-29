@@ -1,5 +1,5 @@
 plugin.stockton.StocktonJEditPlugin.activate=startup
-plugin.stockton.StocktonJEditPlugin.name=Stockton Plugin
+plugin.stockton.StocktonJEditPlugin.name=Stockton Parser
 plugin.stockton.StocktonJEditPlugin.version=0.1
 plugin.stockton.StocktonJEditPlugin.jars=
 plugin.stockton.StocktonJEditPlugin.description=A bundle of language parsers

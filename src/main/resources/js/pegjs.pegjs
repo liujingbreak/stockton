@@ -24,7 +24,7 @@ rule
 ruleName
 	= label:label q:(_ Quote)?
 	{
-		return q == null ? label: q[1];
+		return q == null ? label: label +"("+ q[1] + ')';
 	}
 	
 ruleBody

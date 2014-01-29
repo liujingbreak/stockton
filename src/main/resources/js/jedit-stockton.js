@@ -11,7 +11,8 @@ try{
 	sp = Packages.stockton.sidekickParser
 	;
 	
-	var workdir = null;
+	var workdir = null,
+		jeditPlugin, home;
 	
 	/* function loadFile(filepath){
 		var s = "";
@@ -61,8 +62,6 @@ try{
 	
 	log("Greeting from Javascript ...");
 	__invoker.greets();
-	//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
-	
 	
 	function buildSidekickTree(uiNode, result){
 		result.forEach(function(el){
@@ -102,6 +101,11 @@ try{
 				logger.removeHandler(h);
 			});
 		},
+		start:function(plugin){
+				log(plugin.getPluginHome().getPath());
+				jeditPlugin = plugin;
+				home = plugin.getPluginHome();
+		},
 		stop:function(){
 			actions.refresh();
 		},
@@ -109,7 +113,7 @@ try{
 			//loadFile("/Users/liujing/myproject/jeditplugin-parsers/src/main/javascript/pegjs-parser.js");
 			__invoker.greets();
 			
-			log("module"+ module);
+			log("home="+ home.getPath());
 		},
 		reloadjs:function(){
 				__invoker.clearJsExports();

@@ -16,7 +16,7 @@ public class StocktonJEditPlugin extends EditPlugin implements EBComponent{
 	
 	public void start()
 	{
-		mainJs().calljs(Void.class, "start");
+		mainJs().calljs(Void.class, "start", this);
 	}
 	
 	public void stop(){
