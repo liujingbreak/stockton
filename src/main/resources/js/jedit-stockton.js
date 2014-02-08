@@ -10,7 +10,7 @@ try{
 	moz = org.mozilla.javascript,
 	sp = Packages.stockton.sidekickParser
 	;
-	
+	var JSON = require('_json2.js');
 	var workdir = null,
 		jeditPlugin, home;
 	
@@ -58,7 +58,11 @@ try{
 		return r;
 	}
 	
-	
+	function parseJs(text){
+	        var parsers = require("stockton-parsers.js");
+	        var parser = new parsers.JSParser(require("javascript-parser.js"), log);
+	        return parser.parse(text);
+	}
 	
 	log("Greeting from Javascript ...");
 	__invoker.greets();
@@ -68,7 +72,7 @@ try{
 				if(el === null || el === undefined)
 					return;
 				uic = new javax.swing.tree.DefaultMutableTreeNode();
-				var sidekick = new sp.SidekickNode(el.name, "");
+				var sidekick = new sp.SidekickNode(el.fullName? el.fullName: (el.name? el.name: '<f>'), "");
 				sidekick.setStartOffset(el.start);
 				sidekick.setEndOffset(el.stop);
 				uic.setUserObject(sidekick);
@@ -83,6 +87,14 @@ try{
 				var r = parsePEG(text);
 				var data = new sd.SideKickParsedData(fname);
 				buildSidekickTree(data.root, r);
+			}else if(fname.length > 3 && fname.substring(fname.length -3).toLowerCase() == '.js'){
+			        var time0 = new Date().getTime();
+			        var r = parseJs(text);
+			        var time1 = new Date().getTime();
+			        log("parsing duration "+ ( time1 - time0) );
+			        var data = new sd.SideKickParsedData(fname);
+				buildSidekickTree(data.root, r);
+				log("parsing duration "+ (new Date().getTime() - time1) );
 			}else{
 				var data = new sd.SideKickParsedData('test');
 			}

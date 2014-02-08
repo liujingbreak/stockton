@@ -658,6 +658,8 @@ CallExpression
             );
         }
       }
+      result.offset = offset();
+      result.end = peg$currPos;
       return result;
     }
 
@@ -676,8 +678,12 @@ ArgumentList
   }
 
 LeftHandSideExpression
-  = CallExpression
-  / NewExpression
+  = c: (CallExpression 
+  
+  / NewExpression) 
+  {
+    c.offset = offset(), c.end= peg$currPos; return c;
+  }
 
 PostfixExpression
   = expression:LeftHandSideExpression _ operator:PostfixOperator {
@@ -1136,7 +1142,7 @@ Statement
   / ThrowStatement
   / TryStatement
   / DebuggerStatement
-  / FunctionDeclaration
+/*   / FunctionDeclaration */
   / FunctionExpression
 
 Block
@@ -1470,6 +1476,10 @@ FunctionDeclaration
       return {
         type:     "Function",
         name:     name,
+        line: line(),
+        column: column(),
+        offset: offset(),
+        end:peg$currPos,
         params:   params !== null ? params : [],
         elements: elements
       };
@@ -1482,6 +1492,10 @@ FunctionExpression
       return {
         type:     "Function",
         name:     name,
+        line: line(),
+        column: column(),
+        offset: offset(),
+        end:peg$currPos,
         params:   params !== null ? params : [],
         elements: elements
       };
