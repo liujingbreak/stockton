@@ -62,7 +62,7 @@ public class JavaScriptInvoker{
 					return exp;
 			Context cx = Context.enter();
 			try{
-					cx.setOptimizationLevel(1);
+					cx.setOptimizationLevel(5);
 					File f = loadJs(jsFile);
 					Scriptable sp = cx.initStandardObjects();
 					setupInitScope(cx, sp);
@@ -70,7 +70,8 @@ public class JavaScriptInvoker{
 					Scriptable module = (Scriptable) ScriptableObject.getProperty(sp, "module");
 					exp = (Scriptable) module.get("exports", module);
 					jsExports.put(jsFile, exp);
-					return exp;
+					
+					return cx.javaToJS(exp, sp);
 			}catch(Exception ex){
 					log.log(Level.SEVERE, "", ex);
 					return null;

@@ -60,7 +60,7 @@ try{
 	
 	function parseJs(text){
 	        var parsers = require("stockton-parsers.js");
-	        var parser = new parsers.JSParser(require("javascript-parser.js"), log);
+	        var parser = new parsers.EsJSParser(require("esprima.js"), log);
 	        return parser.parse(text);
 	}
 	
@@ -77,6 +77,9 @@ try{
 				sidekick.setEndOffset(el.stop);
 				uic.setUserObject(sidekick);
 				uiNode.add(uic);
+				if(Array.isArray(el.child)){
+				    buildSidekickTree(uic, el.child);
+				}
 		});
 	}
 	
