@@ -1,9 +1,24 @@
 {
-  "name": "hello-world",
-  "description": "hello world test app",
+  "name": "application-name",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "main": "app.js",
   "dependencies": {
-    "express": "3.4.7"
+    "express": "3.4.7",
+    "jade": "*",
+    "less-middleware": "*",
+    "esprima": "~1.0.4"
+  },
+  "engines": {
+    "node": "0.10.x"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.2",
+    "grunt-contrib-uglify": "~0.3.2",
+    "grunt-contrib-jshint": "~0.8.0",
+    "grunt-contrib-watch": "~0.5.3"
   }
 }

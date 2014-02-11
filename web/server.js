@@ -1,5 +1,5 @@
 var express = require('express');
-var app = express();
+var app = express(), os = require('os');
 
 // simple logger
 app.use(function(req, res, next){
@@ -8,9 +8,19 @@ app.use(function(req, res, next){
 });
 
 // respond
-app.use(function(req, res, next){
+/* app.use(function(req, res, next){
   res.send('Hello World');
+}); */
+app.get('/', function(req, res){
+        res.send('Greeting ');
 });
+
+app.get('/about', function(req, res){
+        res.send('<label>current dir: </label>'+ __dirname + "<br><label>host:</label>"+ os.hostname()
+            +'<br><pre>' + JSON.stringify(process.env, null, '    ')
+            +'</pre>');
+});
+
 
 app.listen(19817);
 console.log('Listening on port 19817');

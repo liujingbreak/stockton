@@ -1,4 +1,5 @@
 pppppp={
+    /* liujing */
     aaaa:function(){},
-    'sssss':'p'
+    'sssss':'p' //this is comment 2
 }

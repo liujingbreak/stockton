@@ -4,7 +4,9 @@ var parers = require('./stockton-parsers.js');
 var esprima = require('./esprima');
 
 var text = fs.readFileSync(process.argv[2], {encoding: 'UTF-8'});
-console.log(JSON.stringify(process.memoryUsage()));
+var esTree = esprima.parse(text, {comment:true, range:true});
+console.log(JSON.stringify(esTree, null, '  '));
+/* console.log(JSON.stringify(process.memoryUsage()));
 var startTime0 = new Date().getTime();
 var parser = new parers.JSParser(pegParser, console.log);
 var peg = parser.parse(text);
@@ -20,4 +22,4 @@ console.log("esprima:\n"+JSON.stringify(es, null, '  '));
 console.log("pegjs used time:" + pegusedTime);
 console.log("esprima used time:" + esusedTime);
 
-console.log(JSON.stringify(process.memoryUsage()));
+console.log(JSON.stringify(process.memoryUsage())); */
