@@ -11,14 +11,17 @@ import sidekick.util.*;
 public class SidekickNode extends Asset implements SideKickElement{
 	private String desc;
 	public static Icon ICON;
+	public static Icon ICON1;
+	public static Icon ICON2;
+	public static Icon ICON3;
 
 	public int type = 0;
-	public static int TYPE_FUNCTION = 0;
-	public static int TYPE_JSON = 1;
-	public static int TYPE_BLOCK = 2;
 
 	static{
 		ICON = new ImageIcon(SidekickNode.class.getResource("/methpub_obj.png"));
+		ICON1 = new ImageIcon(SidekickNode.class.getResource("/red_square_dot.jpg"));
+		ICON2 = new ImageIcon(SidekickNode.class.getResource("/yellow_square_dot.jpg"));
+		ICON3 = new ImageIcon(SidekickNode.class.getResource("/blue_square_dot.gif"));
 	}
 
 	public SidekickNode(String name,String desc){
@@ -33,7 +36,16 @@ public class SidekickNode extends Asset implements SideKickElement{
 	}
 
 	public Icon getIcon(){
-		return ICON;
+		switch(type){
+		case 1:
+			return ICON1;
+		case 2:
+			return ICON2;
+		case 3:
+			return ICON3;
+		default:
+			return ICON;
+		}
 	}
 
 	public String getShortString(){

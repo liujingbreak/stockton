@@ -25,6 +25,7 @@ app.use(express.session());
 app.use(app.router);
 app.use(require('less-middleware')({ src: path.join(__dirname, 'public') }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/android', express.static('/Users/liujing/myproject/adt-bundle-mac-x86_64-20131030/sdk/docs'));
 
 // development only
 if ('development' == app.get('env')) {

@@ -72,7 +72,8 @@ try{
 				if(el === null || el === undefined)
 					return;
 				uic = new javax.swing.tree.DefaultMutableTreeNode();
-				var sidekick = new sp.SidekickNode(el.fullName? el.fullName: (el.name? el.name: '<f>'), "");
+				var showName = el.fullName? el.fullName: (el.name? el.name: '<f>');
+				var sidekick = new sp.SidekickNode(showName, "", showName.charAt(0) =='.'?3:0);
 				sidekick.setStartOffset(el.start);
 				sidekick.setEndOffset(el.stop);
 				uic.setUserObject(sidekick);
