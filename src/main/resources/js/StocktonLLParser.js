@@ -1,86 +1,71 @@
 
 
 var EOF = -1;
-var EOL_CODE = '\n'.charCodeAt(0);
 
-function Lexer(text){
-	this.text = text;
-	this.lineno = 1;
-	this.column = 0;
-	this.offset = 0;
-	this.currChar = this.chr(0);
+function mixin(target, obj){
+	for(f in obj){
+		target[f] = obj[f];
+	}
+}
+if (typeof Object.create != 'function') {
+    (function () {
+        var F = function () {};
+        Object.create = function (o) {
+            if (arguments.length > 1) { throw Error('Second argument not supported');}
+            if (o === null) { throw Error('Cannot set a null [[Prototype]]');}
+            if (typeof o != 'object') { throw TypeError('Argument must be an object');}
+            F.prototype = o;
+            return new F;
+        };
+    })();
+}
+function extend(subclass, superclass, override){
+	subclass.prototype = Object.create(superclass.prototype);
+	subclass._super = superclass.prototype;
+	subclass.superclass = superclass;
+	mixin(subclass.prototype, override);
+}
+
+exports.Lexer = function Lexer(str){
+    this.offset = 0;
+    this.lineno = 1;
+    this.col = 1;
+    this.input = new Array(str.length);
+    
+    for(var i = 0, l = str.length; i<l; i++){
+        this.input[i] = str.charAt(i);
+    }
 }
 Lexer.prototype = {
-	chr:function(offset){
-		if(offset == null){
-			offset = this.offset;
-		}
-		if(this.offset < this.text.length){
-			return this.text.charCodeAt(offset);
-		}else{
-			return EOF;
-		}
-		
-	},
-	advance:function(){
-		this.offset++;
-		if(this.currChar == EOL_CODE)
-		this.currChar = this.chr();
-		this.column++;
-	},
-	nextToken:function(){
-		
-	},
-	/** look ahead, 1 based */
-	LA:function(i){
-		if(i < 1)
-			throw new Error('Invalid LA() argument value: '+ i + ', must be bigger than 0');
-		if(i == 1){
-			return this.currChar;
-		}else{
-			return this.chr(this.offset + i -1);
-		}
-	}
+    next:function(){
+        var c = this.la(1);
+        this.consume();
+        return c;
+    },
+    consume:function(){
+        this.offset ++;
+    },
+    /** look ahead
+    @param index starts from 1, default 1
+    */
+    la:function(index){
+        if(index === undefined)
+            index = 1;
+        var pos = this.offset + index - 1;
+        if( pos >= this.input.length)
+            return EOF;
+        return this.input[pos];
+    },
+    nextToken:function(){
+        //
+        throw new Error('not implemented');
+    }
 };
 
-var states = [];
-var startState = {
-	next:[]
+function Parser(lexer){
+    this.lexer = lexer;
+}
+exports.Parser = Parser;
+Parser.prototype = {
+    
 };
-function createStopState(rule){
-	return {
-		stop:true,
-		rule: rule
-	};
-}
-
-function buildDFA(rules){
-	for(var i =0, l=rules.length; i<l; i++){
-		var state = createStopState(rules[i]);
-		states.push(state);
-		startState.next.push(state);
-	}
-	
-}
-
-function rules2DFA(startRule){
-	traverseRuleTree(startRule);
-}
-function traverseRuleTree(rule){
-	switch(rule.type){
-	case 'branch':
-		break;
-	case 'loop':
-			rule.startState = currState;
-		break;
-	case 'range':
-		break;
-	case 'neg':
-		break;
-	default:
-		
-	}
-}
-
-
-
