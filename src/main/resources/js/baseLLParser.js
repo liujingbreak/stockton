@@ -37,13 +37,16 @@ var baseRecog = {
 function Lexer(str, callback){
     this.offset = 0;
     this.lineno = 1;
+    this.col = 1;
+    
     this.startOff = this.offset;
     this.startLine = this.lineno;
-    this.col = 1;
+    this.startCol = this.col;
+    
     this.input = new Array(str.length);
     this.startToken = null;
     this.lastToken = null;
-    this.tokenIndex = 0;                                   
+    this.tokenIndex = 0;
     this.callback = callback;
     this.types = {'-1': EOF};
     this.typeIdx = 0;
@@ -103,8 +106,15 @@ Lexer.prototype = {
         if(num === undefined)
             num = 1;
         for(var i = num; i; i--){
-            if( this.input[this.offset++] == '\n')
+            
+            if( this.input[this.offset] == '\n'){
                 this.lineno++;
+                this.col = 1;
+            }else if(this.input[this.offset] != '\r'){
+                this.col++;
+            }
+            this.offset++;
+            
         }
         //console.log('advance offset=%d', this.offset);
     },
@@ -143,20 +153,17 @@ Lexer.prototype = {
     },
     
     emitToken:function(stype, startOff, startLine, endOff, endLine){
-        /* if(this._unknown != null){
-            this._unknown = null;
-            debugger;
-            this.emitToken('_UNKNOWN');
-        } */
         if(startOff === undefined){
             startOff = this.startOff;
             startLine = this.startLine;
+            startCol = this.startCol;
             endOff = this.offset;
             endLine = this.lineno;
+            endColumn = this.col;
         }
         var token = {
             type:this._tokenType(stype), 
-            pos:[startOff, startLine, endOff, endLine],
+            pos:[startOff, endOff, startLine, endLine, startCol, endCol],
             idx: this.tokenIndex++,
             prev: this.lastToken,
             next:null
@@ -169,11 +176,12 @@ Lexer.prototype = {
             this.startToken = token;
         this.startOff = this.offset;
         this.startLine = this.lineno;
+        this.startCol = this.col;
     },
     
     text:function(token){
         var pos = token.pos;
-        return this.input.slice(pos[0], pos[2]).join('');
+        return this.input.slice(pos[0], pos[1]).join('');
     },
     
     _tokenType:function(stype){
@@ -225,17 +233,43 @@ Parser.prototype = {
         console.log('this._next %s %j', this.typeName(this._next.type), this._next.pos); 
         var next = this._next;
         for(var i = index -1; i; i--){
-            debugger;
-            if(this._next.type == EOF)
-                return this._next;
+            if(next.type == EOF)
+                return next;
             if(!next.next)
                 this.lexer.moreToken();
             next = next.next;
-            console.log('next %d %s %j', i, this.typeName(next.type), next.pos);
         }
-        console.log('return next %d %s %j', index, this.typeName(next.type), next.pos); 
         return next;
     },
+    
+    isLa:function(typeName1, typeName2, typeName3){
+        var arg = [];
+        for(var i=0,l=arguments.length; i<l; i++){
+            arg.push(this.tokenType(arguments[i]));
+        }
+        return this.lookahead.apply(this, arg);
+    },
+    
+    lookahead:function(type1, type2, type3){
+        if(index === undefined)
+            index = 1;
+        if(!this._next){
+            this.lexer.moreToken();
+            this._next = this.lexer.startToken;
+        }
+        var next = this._next;
+        for(var i =0, l = arguments.length; i<l; i++){
+            if(next.type != arguments[i])
+                return false;
+            if(next.type == EOF){
+                return i == l-1;
+            }
+            if(!next.next)
+                this.lexer.moreToken();
+            next = next.next;
+        }
+        return true;
+    }, 
     
     textOf:function(token){
         return this.lexer.text(token);
