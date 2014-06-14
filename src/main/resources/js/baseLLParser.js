@@ -137,7 +137,7 @@ Lexer.prototype = {
         //console.log('la() this=%s, offset=%d, pos=%d', this.classname,this.offset, pos);
         return this.input[pos];
     },
-    isLa:function(c, c2, c3){
+    isNext:function(c, c2, c3){
         for(var i = 1, l = arguments.length; i<= l; i++){
             if(this.la(i) != arguments[i - 1 ])
                 return false;
@@ -152,23 +152,30 @@ Lexer.prototype = {
             this._unknown += c;
     },
     
-    emitToken:function(stype, startOff, startLine, endOff, endLine){
+    /**
+    @param stype token type name
+    @param channel default channel is 0, if you want to indicate this token as skipped token like white space, put it as any number other than 0
+    */
+    emitToken:function(stype, channel, startOff, startLine, endOff, endLine, startCol, endCol){
         if(startOff === undefined){
             startOff = this.startOff;
             startLine = this.startLine;
             startCol = this.startCol;
             endOff = this.offset;
             endLine = this.lineno;
-            endColumn = this.col;
+            endCol = this.col;
         }
-        var token = {
+        if(channel === undefined)
+            channel = 0;
+        var token = new Token({
             type:this._tokenType(stype), 
             pos:[startOff, endOff, startLine, endLine, startCol, endCol],
             idx: this.tokenIndex++,
+            channel: channel,
             prev: this.lastToken,
             next:null
-        };
-        //console.log('emit '+ type);
+        }, this);
+        //console.log('# emit %s %j', stype, token.pos);
         if(this.lastToken)
             this.lastToken.next = token;
         this.lastToken = token;
@@ -177,6 +184,7 @@ Lexer.prototype = {
         this.startOff = this.offset;
         this.startLine = this.lineno;
         this.startCol = this.col;
+        
     },
     
     text:function(token){
@@ -193,9 +201,40 @@ Lexer.prototype = {
     }
 };
 
-function Parser(str, lexerCallback){
+function Token(json, lexer){
+    mixin(this, json);
+    this.lexer = lexer;
+}
+Token.prototype = {
+    typeName:function(){
+        if(this.type == EOF)
+            return 'EOF';
+        return this.lexer.typeNames[this.type];
+    },
+    text:function(){
+        return this.lexer.text(this);
+    },
+    toString:function(){
+        return JSON.stringify({
+                type: this.type,
+                typeName: this.typeName(),
+                channel: this.channel,
+                idx: this.idx,
+                pos: this.position2str(),
+                text: this.text()
+        }, null, '  ');
+    },
+    position2str:function(){
+        return ' [offset '+ this.pos[0] +' - '+ this.pos[1] +
+        '], [line '+ this.pos[2] +' - '+ this.pos[3] +
+        '], [columen '+ this.pos[4] +' - '+ this.pos[5]+ ']';
+    }
+}
+
+function Parser(str, lexerCallback, channel){
     this.lexer = new Lexer(str, lexerCallback);
     this.currIdx = null;
+    this.channel = channel === undefined? 0 : channel;
 }
 exports.Parser = Parser;
 Parser.prototype = {
@@ -212,13 +251,14 @@ Parser.prototype = {
     tokenType:function(sType){
         return this.lexer.types[sType];
     },
+    
     nextToken:function(){
-        debugger;
         if(!this._next){
             this.lexer.moreToken();
             this._next = this.lexer.startToken;
-        }else if(!this._next.next){
-            this.lexer.moreToken();
+        }else{
+            if(!this._next.next)
+                this.lexer.moreToken();
             this._next = this._next.next;
         }
         return this._next;
@@ -230,7 +270,7 @@ Parser.prototype = {
             this.lexer.moreToken();
             this._next = this.lexer.startToken;
         }
-        console.log('this._next %s %j', this.typeName(this._next.type), this._next.pos); 
+        //console.log©250('this._next %s %j', this.typeName(this._next.type), this._next.pos); 
         var next = this._next;
         for(var i = index -1; i; i--){
             if(next.type == EOF)
@@ -238,38 +278,74 @@ Parser.prototype = {
             if(!next.next)
                 this.lexer.moreToken();
             next = next.next;
+            if(next.channel !== this.channel)
+                i++;//more rounds
         }
         return next;
     },
     
-    isLa:function(typeName1, typeName2, typeName3){
-        var arg = [];
-        for(var i=0,l=arguments.length; i<l; i++){
-            arg.push(this.tokenType(arguments[i]));
-        }
-        return this.lookahead.apply(this, arg);
+    isTokens:function(typeName1, typeName2, typeName3){
+        var types = arguments;
+        return this._isTypes.call(this, function(i){
+                //console.log(this.lexer.types);
+                //console.log('test type %s', types[i]);
+                return this.tokenType(types[i]);
+            }, arguments.length);
     },
     
-    lookahead:function(type1, type2, type3){
-        if(index === undefined)
-            index = 1;
+    _isTypes:function(typesCallback, typesNum){
         if(!this._next){
             this.lexer.moreToken();
             this._next = this.lexer.startToken;
         }
         var next = this._next;
-        for(var i =0, l = arguments.length; i<l; i++){
-            if(next.type != arguments[i])
+        for(var i =0, l = typesNum; i<l; i++){
+            var ntype = typesCallback.call(this, i);
+            if(next.channel !== this.channel){
+                i++;//more rounds
+                continue;
+            }
+            if(next.type != ntype){
+                console.log('Not found: next.type=%s\n\texpect=%s', 
+                    next, this.typeName(ntype));
                 return false;
+            }
             if(next.type == EOF){
                 return i == l-1;
             }
             if(!next.next)
                 this.lexer.moreToken();
             next = next.next;
+            
         }
         return true;
-    }, 
+    },
+    
+    bnfStar:function(predFunc, subRule){
+        if(subRule === undefined)
+            subRule = this.advance;
+        while(this.la().type != EOF){
+            var pred = predFunc.call(this, this);
+            if(pred === undefined){
+                throw new Error('predicate function must return boolean value');
+            }
+            if(!pred)
+                break;
+            subRule.call(this);
+        }
+    },
+    
+    advance:function(num){
+        if(num === undefined)
+            num = 1;
+        var last;
+        for(var i = num; i; i--){
+            last = this.nextToken();
+            if( last.channel !== this.channel)
+                i++;
+        }
+        return last;
+    },
     
     textOf:function(token){
         return this.lexer.text(token);
