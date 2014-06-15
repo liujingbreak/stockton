@@ -19,7 +19,7 @@ var parser = new LL.Parser(str, function(lex){
         stringLit(lex);
     }else if(c == ' ' || c == '\n' || c == '\t' || c == '\r'){
         lex.advance();
-        lex.bnfStar(function(){
+        lex.bnfLoop(function(){
                 var c = lex.la();
                 return c == ' ' || c == '\n' || c == '\t' || c == '\r';
         });
@@ -27,9 +27,16 @@ var parser = new LL.Parser(str, function(lex){
     }else if(c == '@'){
         varname(lex);
     }else{
-        lex.advance();
-        lex.emitToken('*');
-        return;
+        switch(c){
+        case '#':
+        case '=':
+            lex.advance();
+            lex.emitToken(c);
+            break;
+        default:
+            lex.advance();
+            lex.emitToken('[*]');
+        }
     }
 });
 
@@ -43,16 +50,16 @@ function varname(lex){
 
 function tagName(lex){
     lex.advance();
-    lex.bnfStar(function(){
+    lex.bnfLoop(function(){
             return isID(lex.la());
     });
-    lex.emitToken('tagName');
+    lex.emitToken('ID');
 }
 
 function className(lex){
     //console.log('classname %d', lex.offset);
     lex.advance(2);
-    lex.bnfStar(function(){
+    lex.bnfLoop(function(){
         return isID(lex.la())
     });
     //console.log('classname end %d', lex.offset);
@@ -62,7 +69,7 @@ function className(lex){
 function stringLit(lex){
     var start = lex.la();
     lex.advance();
-    lex.bnfStar(function(){
+    lex.bnfLoop(function(){
             return lex.la() != start;
     }, function(){
         var c = this.la();
@@ -75,7 +82,7 @@ function stringLit(lex){
 
 function comment(lex){
     lex.advance(2);
-    lex.bnfStar(function(){
+    lex.bnfLoop(function(){
             return !this.isNext('*', '/');
     });
     lex.advance(2);
@@ -84,7 +91,7 @@ function comment(lex){
 
 function lineComment(lex){
     lex.advance(2);
-    lex.bnfStar(function(){
+    lex.bnfLoop(function(){
             return this.la() != '\n';
     });
     lex.advance();
@@ -104,7 +111,19 @@ function isID(c){
 }
 
 function root(parser){
-    
+    return content(parser);
+}
+
+function content(parser){
+    var ret = [];
+    while(!parser.isTokens('EOF')){
+        if(parser.isTokens('varname'))
+            ret.push( variableDef(parser) );
+        else if(parser.isTokens('ID') || parser.isTokens('#') || parser.isTokens('className')){
+            ret.push(selector(parser));
+        }
+    }
+    return ret;
 }
 //do{
 //    var token = parser.nextToken();
@@ -112,18 +131,18 @@ function root(parser){
 //        console.log('[%d] type: %s, line: %j \n%s', token.idx, parser.typeName(token.type), token.pos, parser.lexer.text(token));
 //}while(token.type != -1);
 
-console.log('la() %s', parser.la());
-console.log('la(2) %s', parser.la(2));
-console.log('la(3) %s', parser.la(3));
-console.log('la(4) %s', parser.la(4));
-
+//console.log('la() %s', parser.la());
+//console.log('la(2) %s', parser.la(2));
+//console.log('la(3) %s', parser.la(3));
+//console.log('la(4) %s', parser.la(4));
+//console.log('la(5) %s', parser.la(5));
 var assert = require('assert');
 // assert(parser.isTokens('comment'));
-assert(parser.isTokens('comment', 'tagName', '*'));
+assert(parser.isTokens('comment', 'ID', '*'));
 parser.advance(2);
 console.log('----------\nla() %s ', parser.la());
-assert(parser.isTokens('*', 'tagName'));
+assert(parser.isTokens('*', 'ID'));
 parser.advance();
-assert(parser.isTokens( 'tagName'));
+assert(parser.isTokens( 'ID'));
 
 

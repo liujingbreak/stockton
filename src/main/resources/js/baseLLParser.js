@@ -80,7 +80,7 @@ Lexer.prototype = {
         }
     },
     
-    bnfStar:function(predFunc, subRule){
+    bnfLoop:function(predFunc, subRule){
         if(subRule === undefined)
             subRule = this.advance;
         while(this.la() != EOF){
@@ -92,10 +92,6 @@ Lexer.prototype = {
                 break;
             subRule.call(this);
         }
-    },
-    bnfQuest:function(){
-    },
-    bnfPlus:function(){
     },
     next:function(){
         var c = this.la(1);
@@ -321,7 +317,7 @@ Parser.prototype = {
         return true;
     },
     
-    bnfStar:function(predFunc, subRule){
+    bnfLoop:function(predFunc, subRule){
         if(subRule === undefined)
             subRule = this.advance;
         while(this.la().type != EOF){
