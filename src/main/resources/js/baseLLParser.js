@@ -293,12 +293,14 @@ Parser.prototype = {
         if(!this._next){
             this.lexer.moreToken();
             this._next = this.lexer.startToken;
-        }
+        }console.log('typesNum %d', typesNum);
         var next = this._next;
         for(var i =0, l = typesNum; i<l; i++){
             var ntype = typesCallback.call(this, i);
-            if(next.channel !== this.channel){
-                i++;//more rounds
+            
+            if(next.type != EOF && next.channel !== this.channel){
+                next = next.next;
+                i--;//more rounds
                 continue;
             }
             if(next.type != ntype){

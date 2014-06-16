@@ -131,18 +131,57 @@ function content(parser){
 //        console.log('[%d] type: %s, line: %j \n%s', token.idx, parser.typeName(token.type), token.pos, parser.lexer.text(token));
 //}while(token.type != -1);
 
-//console.log('la() %s', parser.la());
-//console.log('la(2) %s', parser.la(2));
-//console.log('la(3) %s', parser.la(3));
-//console.log('la(4) %s', parser.la(4));
-//console.log('la(5) %s', parser.la(5));
+console.log('la() %s', parser.la());
+console.log('la(2) %s', parser.la(2));
+console.log('la(3) %s', parser.la(3));
+console.log('la(4) %s', parser.la(4));
+console.log('la(5) %s', parser.la(5));
 var assert = require('assert');
 // assert(parser.isTokens('comment'));
-assert(parser.isTokens('comment', 'ID', '*'));
+assert(parser.isTokens('comment', 'ID', '[*]'));
 parser.advance(2);
 console.log('----------\nla() %s ', parser.la());
-assert(parser.isTokens('*', 'ID'));
+assert(parser.isTokens('[*]', 'ID'));
 parser.advance();
 assert(parser.isTokens( 'ID'));
 
 
+
+
+var handler = {
+  param: null,
+  callback: function(i){
+    return this.param[i];
+  }
+};
+
+function run2(handler){
+    return 's' + handler.callback(0);
+}
+
+function run1(callback){
+    return 's' + callback(0);
+}
+function test(typeName1, typeName2, typeName3){
+        var types = arguments;
+        return run1.call(this, function(i){
+                return types[i];
+            });
+}
+function test2(typeName1, typeName2, typeName3){
+        handler.param = arguments;
+  return run2.call(this, handler);
+}
+
+var start = new Date().getTime();
+for(var i =0;i<1000000;i++){
+    test('1','2','3');
+}
+console.log('duration of test 1 %s', (new Date().getTime() - start) );
+
+
+start = new Date().getTime();
+for(var i =0;i<1000000;i++){
+    test2('1','2','3');
+}
+console.log('duration of test 2 %s', (new Date().getTime() - start) );
