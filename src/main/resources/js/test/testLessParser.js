@@ -12,7 +12,7 @@ var parser = new LL.Parser(str, function(lex){
             lineComment(lex);
     }
     else if( isID(c)){
-        tagName(lex);
+        ID(lex);
     }else if(c == '.' && ( isID(this.la(2)) )){
         className(lex);
     }else if(c == '"' || c == "'"){
@@ -30,6 +30,9 @@ var parser = new LL.Parser(str, function(lex){
         switch(c){
         case '#':
         case '=':
+        case '{':
+        case '}':
+        case ';':
             lex.advance();
             lex.emitToken(c);
             break;
@@ -48,7 +51,7 @@ function varname(lex){
     lex.emitToken('varname');
 }
 
-function tagName(lex){
+function ID(lex){
     lex.advance();
     lex.bnfLoop(function(){
             return isID(lex.la());
@@ -111,19 +114,40 @@ function isID(c){
 }
 
 function root(parser){
-    return content(parser);
+    return content(parser, 'EOF');
 }
 
-function content(parser){
+function content(parser, rulectx, endType){
     var ret = [];
-    while(!parser.isTokens('EOF')){
+    while(!parser.isTokens(endType)){
         if(parser.isTokens('varname'))
-            ret.push( variableDef(parser) );
-        else if(parser.isTokens('ID') || parser.isTokens('#') || parser.isTokens('className')){
-            ret.push(selector(parser));
+            ret.push( cssRule(parser) );
+        else{
+            ret.push(cssUnit(parser));
         }
     }
     return ret;
+}
+
+
+function cssUnit(parser){
+    var sel = parser.rule(selector);
+    expect('{');
+    parser.rule(content, '}');
+    expect('}');
+}
+
+function selector(parser, ruleCtx){
+    var start = parser.la().pos[0];
+    parser.bnfLoop(function(){
+            return ! parser.inTokens('{', '}', ';');
+    });
+    var end = parser.la().pos[0];
+    return ruleCtx.text();
+}
+
+function cssRule(parser){
+    
 }
 //do{
 //    var token = parser.nextToken();
@@ -138,15 +162,15 @@ console.log('la(4) %s', parser.la(4));
 console.log('la(5) %s', parser.la(5));
 var assert = require('assert');
 // assert(parser.isTokens('comment'));
-assert(parser.isTokens('comment', 'ID', '[*]'));
+assert(parser.isTokens('comment', 'ID', '{'));
 parser.advance(2);
 console.log('----------\nla() %s ', parser.la());
-assert(parser.isTokens('[*]', 'ID'));
+assert(parser.isTokens('{', 'ID'));
 parser.advance();
 assert(parser.isTokens( 'ID'));
 
 
-
+/*
 
 var handler = {
   param: null,
@@ -185,3 +209,4 @@ for(var i =0;i<1000000;i++){
     test2('1','2','3');
 }
 console.log('duration of test 2 %s', (new Date().getTime() - start) );
+*/

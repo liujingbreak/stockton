@@ -183,9 +183,16 @@ Lexer.prototype = {
         
     },
     
+    /**
+    @param token | startOffset, endOffset
+    */
     text:function(token){
-        var pos = token.pos;
-        return this.input.slice(pos[0], pos[1]).join('');
+        if(arguments.length == 1){
+            var pos = token.pos;
+            return this.input.slice(pos[0], pos[1]).join('');
+        }else{
+            return this.input.slice(arguments[0], arguments[1]).join('');
+        }
     },
     
     _tokenType:function(stype){
@@ -280,11 +287,18 @@ Parser.prototype = {
         return next;
     },
     
+    inTokens:function(typeName1){
+        var ntype = this.la().type;
+        for(var i=0,l=arguments.length; i<l; i++){
+            if(ntype == this.tokenType(arguments[i]))
+                return true;
+        }
+        return false;
+    },
+    
     isTokens:function(typeName1, typeName2, typeName3){
         var types = arguments;
         return this._isTypes.call(this, function(i){
-                //console.log(this.lexer.types);
-                //console.log('test type %s', types[i]);
                 return this.tokenType(types[i]);
             }, arguments.length);
     },
@@ -333,6 +347,15 @@ Parser.prototype = {
         }
     },
     
+    expect:function(typeName1){
+        for(var i=0,l=arguments.length; i<l; i++){
+            if(!this.isTokens(arguments[i]))
+                this.advance();
+            else
+                throw new Error('unexpect token %s', this.la());
+        }
+    },
+    
     advance:function(num){
         if(num === undefined)
             num = 1;
@@ -347,6 +370,25 @@ Parser.prototype = {
     
     textOf:function(token){
         return this.lexer.text(token);
+    },
+    
+    text:function(startOffset, endOffset){
+        return this.lexer.text(startOffset, endOffset);
+    },
+    
+    rule:function(func, arg0){
+        var start = this.la().pos[0];
+        var parser = this;
+        var args = [this, {
+                
+                text:function(){
+                    return parser.text(start, parser.la().pos[0]);
+                }
+        }];
+        for(var i=1,l=arguments.length; i<l; i++){
+            args.push(arguments[i]));
+        }
+        return func.apply(this, args);
     }
 };
 
