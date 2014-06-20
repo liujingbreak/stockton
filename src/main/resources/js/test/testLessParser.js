@@ -3,6 +3,107 @@ var fs = require('fs');
 
 var str = fs.readFileSync('./test.less', {encoding: 'utf-8'});
 
+
+
+var grammar = {
+    root:function(){
+        this.rule('content', 'EOF');
+        this.expect('EOF');
+    },
+    
+    content:function (endType){
+        var ret = [];
+        this.bnfLoop(0, function(){
+                return !this.predToken(endType);
+        }, function(){
+            if(this.predToken('varname'))
+                ret.push( this.rule('cssRule') );
+            else if(this.predRule('style')){
+                this.rule('style');
+            }else if(this.inTokens(';')){
+                this.log('WARNING: bad format '+ this.la());
+                this.advance();
+            }else{
+                ret.push(this.rule('cssSelector'));
+            }
+        });
+        return ret;
+    },
+    
+    
+    cssSelector:function (){
+        
+        var sel = this.rule('selector');
+        if(!this.isPredict())
+            this.log('[cssSelector] %s', this.ruleText());
+        this.expect('{');
+        this.rule('content', '}');
+        this.expect('}');
+    },
+    
+    
+    style:function(){
+        var prop = this.rule('property');
+        this.expect(':');
+        var val = this.rule('value');
+        if(this.predToken(';')){
+            this.advance();
+        }else if(this.inTokens('}', 'EOF')){
+            this.log('WARNING: expect ";", bad format at ' + this.la());
+        }else{
+            this.unexpect(this.la());
+        }
+    },
+    
+    property:function(){
+        this.bnfLoop(1, function(){
+                return !this.inTokens(':', '{', '}', 'EOF', ';');
+        });
+        return this.ruleText();
+    },
+    
+    value:function(){
+        this.bnfLoop(0, function(){
+                return !this.inTokens(';', '{','}');
+        });
+        return this.ruleText();
+    },
+    
+    selector: function(){
+        
+        this.bnfLoop(1, function(){
+                return ! this.inTokens('{', '}', ';');
+        });
+        return this.ruleText();
+    },
+    
+    cssRule:function (){
+        this.expect('varname');
+        if(this.predToken('{')){
+            if(!this.isPredict())
+                this.log('[cssRule] %s', this.ruleText());
+            this.advance();
+            this.rule('content', '}');
+            this.expect('}');
+        }else if(this.predToken(':')){
+            this.advance();
+            this.bnfLoop(0, function(){
+                    return !this.inTokens(';','{');
+            });
+            if(!this.isPredict())
+                this.log('[cssRule] %s', this.ruleText());
+            if(this.predToken('{')){
+                this.advance();
+                this.rule('content', '}');
+                this.expect('}');
+            }else{
+                this.expect(';');
+            }
+        }
+        
+    }
+};
+
 var parser = new LL.Parser(str, function(lex){
     var c = this.la();
     if(c == '/'){
@@ -19,7 +120,7 @@ var parser = new LL.Parser(str, function(lex){
         stringLit(lex);
     }else if(c == ' ' || c == '\n' || c == '\t' || c == '\r'){
         lex.advance();
-        lex.bnfLoop(function(){
+        lex.bnfLoop(0, function(){
                 var c = lex.la();
                 return c == ' ' || c == '\n' || c == '\t' || c == '\r';
         });
@@ -33,6 +134,7 @@ var parser = new LL.Parser(str, function(lex){
         case '{':
         case '}':
         case ';':
+        case ':':
             lex.advance();
             lex.emitToken(c);
             break;
@@ -41,11 +143,11 @@ var parser = new LL.Parser(str, function(lex){
             lex.emitToken('[*]');
         }
     }
-});
+}, grammar);
 
 function varname(lex){
     lex.advance();
-    lex.bnf(function(){
+    lex.bnfLoop(0, function(){
             return isID(lex.la());
     });
     lex.emitToken('varname');
@@ -53,7 +155,7 @@ function varname(lex){
 
 function ID(lex){
     lex.advance();
-    lex.bnfLoop(function(){
+    lex.bnfLoop(0, function(){
             return isID(lex.la());
     });
     lex.emitToken('ID');
@@ -62,7 +164,7 @@ function ID(lex){
 function className(lex){
     //console.log('classname %d', lex.offset);
     lex.advance(2);
-    lex.bnfLoop(function(){
+    lex.bnfLoop(0, function(){
         return isID(lex.la())
     });
     //console.log('classname end %d', lex.offset);
@@ -72,7 +174,7 @@ function className(lex){
 function stringLit(lex){
     var start = lex.la();
     lex.advance();
-    lex.bnfLoop(function(){
+    lex.bnfLoop(0, function(){
             return lex.la() != start;
     }, function(){
         var c = this.la();
@@ -80,25 +182,26 @@ function stringLit(lex){
             this.advance();
         this.advance();
     });
+    lex.advance();
     lex.emitToken('stringLit');
 }
 
 function comment(lex){
     lex.advance(2);
-    lex.bnfLoop(function(){
-            return !this.isNext('*', '/');
+    lex.bnfLoop(0, function(){
+            return !this.predChar('*', '/');
     });
     lex.advance(2);
-    lex.emitToken('comment');
+    lex.emitToken('comment', 1);
 }
 
 function lineComment(lex){
     lex.advance(2);
-    lex.bnfLoop(function(){
+    lex.bnfLoop(0, function(){
             return this.la() != '\n';
     });
     lex.advance();
-    lex.emitToken('comment');
+    lex.emitToken('comment', 1);
 }
 
 function isLetter(c){
@@ -113,61 +216,26 @@ function isID(c){
     return isLetter(c) || isNum(c) || c == '-' || c == '_';
 }
 
-function root(parser){
-    return content(parser, 'EOF');
-}
-
-function content(parser, rulectx, endType){
-    var ret = [];
-    while(!parser.isTokens(endType)){
-        if(parser.isTokens('varname'))
-            ret.push( cssRule(parser) );
-        else{
-            ret.push(cssUnit(parser));
-        }
-    }
-    return ret;
-}
-
-
-function cssUnit(parser){
-    var sel = parser.rule(selector);
-    expect('{');
-    parser.rule(content, '}');
-    expect('}');
-}
-
-function selector(parser, ruleCtx){
-    var start = parser.la().pos[0];
-    parser.bnfLoop(function(){
-            return ! parser.inTokens('{', '}', ';');
-    });
-    var end = parser.la().pos[0];
-    return ruleCtx.text();
-}
-
-function cssRule(parser){
-    
-}
+parser.rule('root');
 //do{
-//    var token = parser.nextToken();
-//    if(token.type != parser.tokenType('WS'))
-//        console.log('[%d] type: %s, line: %j \n%s', token.idx, parser.typeName(token.type), token.pos, parser.lexer.text(token));
+//    var token = this.nextToken();
+//    if(token.type != this.tokenType('WS'))
+//        console.log('token: %s', token);
 //}while(token.type != -1);
 
-console.log('la() %s', parser.la());
-console.log('la(2) %s', parser.la(2));
-console.log('la(3) %s', parser.la(3));
-console.log('la(4) %s', parser.la(4));
-console.log('la(5) %s', parser.la(5));
+/* console.log('la() %s', this.la());
+console.log('la(2) %s', this.la(2));
+console.log('la(3) %s', this.la(3));
+console.log('la(4) %s', this.la(4));
+console.log('la(5) %s', this.la(5));
 var assert = require('assert');
-// assert(parser.isTokens('comment'));
-assert(parser.isTokens('comment', 'ID', '{'));
-parser.advance(2);
-console.log('----------\nla() %s ', parser.la());
-assert(parser.isTokens('{', 'ID'));
-parser.advance();
-assert(parser.isTokens( 'ID'));
+// assert(this.predToken('comment'));
+assert(this.predToken('comment', 'ID', '{'));
+this.advance(2);
+console.log('----------\nla() %s ', this.la());
+assert(this.predToken('{', 'ID'));
+this.advance();
+assert(this.predToken( 'ID')); */
 
 
 /*

@@ -1,5 +1,5 @@
 
-
+var assert = require('assert');
 var EOF = -1;
 
 function mixin(target, obj){
@@ -25,14 +25,22 @@ function extend(subclass, superclass, override){
 	subclass.superclass = superclass;
 	mixin(subclass.prototype, override);
 }
-function UnexpectLex(attr){
-    mixin(this, attr);
+function UnexpectLex(msg){
+    var err = new Error(msg);
+    err.name = 'UnexpectLex';
+    return err;
 }
-extend(UnexpectLex, Error);
+//extend(UnexpectLex, Error);
 
-var baseRecog = {
-    
-};
+function UnexpectToken(msg){
+    var err = Error(msg);
+    //err.message = msg;
+    err.name = 'UnexpectToken';
+    return err;
+}
+//extend(UnexpectToken, Error);
+
+//assert(new UnexpectToken('').constructor === UnexpectToken);
 
 function Lexer(str, callback){
     this.offset = 0;
@@ -48,7 +56,7 @@ function Lexer(str, callback){
     this.lastToken = null;
     this.tokenIndex = 0;
     this.callback = callback;
-    this.types = {'-1': EOF};
+    this.types = {'EOF': EOF};
     this.typeIdx = 0;
     this.typeNames = [];
     //this.nextChar = null;
@@ -64,7 +72,7 @@ Lexer.prototype = {
         try{
             var c = this.la();
             if(c == EOF){
-                this.emitToken(EOF);
+                this.emitToken('EOF');
                 return;
             }
             if(this.callback)
@@ -72,7 +80,7 @@ Lexer.prototype = {
             else
                 throw new Error('not implemented');
         }catch(e){
-            if(e instanceof UnexpectLex){
+            if(e.name == 'UnexpectLex'){
                 console.log('Lexer fails due to above exception');
             }
             //todo handle expection
@@ -80,18 +88,28 @@ Lexer.prototype = {
         }
     },
     
-    bnfLoop:function(predFunc, subRule){
+    bnfLoop:function(leastTimes, predFunc, subRule){
         if(subRule === undefined)
             subRule = this.advance;
         while(this.la() != EOF){
-            var pred = predFunc.call(this, this);
-            if(pred === undefined){
-                throw new Error('predicate function must return boolean value');
+            try{
+                var pred = predFunc.call(this, this);
+                if(pred === undefined){
+                    throw new Error('predicate function must return boolean value');
+                }
+            }catch(e){
+                if(e.name == UnexpectLex)
+                    pred = false;
+                else
+                    throw e;
             }
             if(!pred)
                 break;
             subRule.call(this);
+            leastTimes--;
         }
+        if(leastTimes > 0)
+            this.unexpect(' end of BNF');
     },
     next:function(){
         var c = this.la(1);
@@ -114,12 +132,13 @@ Lexer.prototype = {
         }
         //console.log('advance offset=%d', this.offset);
     },
-    unexpect:function(chr){
+    unexpect:function(msg){
+        chr = this.la();
         if(chr == EOF)
             chr = 'EOF';
-        console.log('unexpect char at line '+ this.lineno + ', offset '+ this.offset + 
+        console.log('unexpect '+ (msg?msg:'') +' char at line '+ this.lineno + ', offset '+ this.offset + 
             ' "'+ chr + '"');
-        throw new UnexpectLex({chr: chr, lineno: this.lineno, offset: this.offset});
+        throw new UnexpectLex(JSON.stringify({chr: chr, lineno: this.lineno, offset: this.offset}, null, '  '));
     },
     /** look ahead
     @param index starts from 1, default 1
@@ -133,7 +152,7 @@ Lexer.prototype = {
         //console.log('la() this=%s, offset=%d, pos=%d', this.classname,this.offset, pos);
         return this.input[pos];
     },
-    isNext:function(c, c2, c3){
+    predChar:function(c, c2, c3){
         for(var i = 1, l = arguments.length; i<= l; i++){
             if(this.la(i) != arguments[i - 1 ])
                 return false;
@@ -194,8 +213,12 @@ Lexer.prototype = {
             return this.input.slice(arguments[0], arguments[1]).join('');
         }
     },
-    
+    /**
+    create a new type number or return existing type number
+    */
     _tokenType:function(stype){
+        if(stype == 'EOF')
+            debugger;
         if(stype in this.types)
             return this.types[stype];
         var n = this.types[stype] = this.typeIdx ++;
@@ -234,18 +257,19 @@ Token.prototype = {
     }
 }
 
-function Parser(str, lexerCallback, channel){
+function Parser(str, lexerCallback, parserGrammar, channel){
     this.lexer = new Lexer(str, lexerCallback);
     this.currIdx = null;
+    this._next = null;
+    this.nestedPredCnt = 0;
     this.channel = channel === undefined? 0 : channel;
+    this.ruleStackCurr = null;
+    this.stackLevel = -1;
+    this.grammar = parserGrammar;
 }
 exports.Parser = Parser;
 Parser.prototype = {
     classname:'Parser',
-    defTokenTypes:function(type1, type2, typeN){
-        for(var i=0, l=arguments.length;i<l; i++)
-            this.lexer._tokenType(arguments[i]);
-    },
     typeName:function(nType){
         if(nType == EOF)
             return 'EOF';
@@ -275,7 +299,10 @@ Parser.prototype = {
         }
         //console.log©250('this._next %s %j', this.typeName(this._next.type), this._next.pos); 
         var next = this._next;
-        for(var i = index -1; i; i--){
+        var i = index -1;
+        if(next.channel !== this.channel)
+            i++;
+        for(; i; i--){
             if(next.type == EOF)
                 return next;
             if(!next.next)
@@ -296,33 +323,75 @@ Parser.prototype = {
         return false;
     },
     
-    isTokens:function(typeName1, typeName2, typeName3){
+    predToken:function(typeName1, typeName2, typeName3){
         var types = arguments;
         return this._isTypes.call(this, function(i){
                 return this.tokenType(types[i]);
             }, arguments.length);
     },
     
+    predRule:function(predFuncName, param){
+        var arr = [];
+        for(var i=1,l=arguments.length;i<l;i++)
+            arr.push(arguments[i]);
+        return this._predRule(predFuncName, arr);
+    },
+    
+    _predRule:function(predFuncName, paramArray){
+        return this._pred(this.grammar[predFuncName], paramArray);
+    },
+    
+    pred:function(predFunc, param){
+        var arr = [];
+        for(var i=1,l=arguments.length;i<l;i++)
+            arr.push(arguments[i]);
+        return this._pred(predFunc, arr);
+    },
+    
+    _pred:function(predFunc, paramArray){
+        this.nestedPredCnt++;
+        var next = this._next;
+        try{
+            var ret = predFunc.apply(this, paramArray);
+            return ret !== false;
+        }catch(e){
+            if(e.name == 'UnexpectToken'){
+                return false;
+            }else
+                throw e;
+        }finally{
+            this._next = next;
+            this.nestedPredCnt--;
+        }
+    },
+    
+    isPredict:function(){
+        return this.nestedPredCnt >0 ;
+    },
+    
     _isTypes:function(typesCallback, typesNum){
         if(!this._next){
             this.lexer.moreToken();
             this._next = this.lexer.startToken;
-        }console.log('typesNum %d', typesNum);
+        }
         var next = this._next;
         for(var i =0, l = typesNum; i<l; i++){
             var ntype = typesCallback.call(this, i);
-            
+            if(next.type == EOF){
+                debugger;
+            }
             if(next.type != EOF && next.channel !== this.channel){
                 next = next.next;
                 i--;//more rounds
                 continue;
             }
             if(next.type != ntype){
-                console.log('Not found: next.type=%s\n\texpect=%s', 
-                    next, this.typeName(ntype));
+                //console.log('Not found: next.type=%s\n\texpect=%s', 
+                //    next, this.typeName(ntype));
                 return false;
             }
             if(next.type == EOF){
+                debugger;
                 return i == l-1;
             }
             if(!next.next)
@@ -333,27 +402,45 @@ Parser.prototype = {
         return true;
     },
     
-    bnfLoop:function(predFunc, subRule){
+    bnfLoop:function(leastTimes, predFunc, subRule){
         if(subRule === undefined)
             subRule = this.advance;
         while(this.la().type != EOF){
-            var pred = predFunc.call(this, this);
-            if(pred === undefined){
-                throw new Error('predicate function must return boolean value');
+            try{
+                var next = this._next;
+                debugger;
+                var pred = this._pred(predFunc);
+                this._next = next;
+                if(pred === undefined){
+                    throw new Error('predicate function must return boolean value');
+                }
+            }catch(e){
+                if(e.name == 'UnexpectToken')
+                    pred = false;
+                else
+                    throw e;
             }
             if(!pred)
                 break;
             subRule.call(this);
+            leastTimes--;
         }
+        if(leastTimes > 0)
+            throw new UnexpectToken('unexpect end of BNF '+ this.la());
     },
     
     expect:function(typeName1){
         for(var i=0,l=arguments.length; i<l; i++){
-            if(!this.isTokens(arguments[i]))
+            if(this.predToken(arguments[i]))
                 this.advance();
-            else
-                throw new Error('unexpect token %s', this.la());
+            else{
+                throw new UnexpectToken('expect "'+ arguments[i] +'", unexpect token: '+ this.la());
+            }
         }
+    },
+    
+    unexpect:function(token){
+        throw new UnexpectToken('unexpect Token '+ token);
     },
     
     advance:function(num){
@@ -376,19 +463,63 @@ Parser.prototype = {
         return this.lexer.text(startOffset, endOffset);
     },
     
-    rule:function(func, arg0){
-        var start = this.la().pos[0];
-        var parser = this;
-        var args = [this, {
-                
-                text:function(){
-                    return parser.text(start, parser.la().pos[0]);
-                }
-        }];
-        for(var i=1,l=arguments.length; i<l; i++){
-            args.push(arguments[i]));
+    rule:function(funcName, arg0){
+        this._inRule(funcName);
+        try{
+            var args = [];
+            var parser = this;
+            for(var i=1,l=arguments.length; i<l; i++){
+                args.push(arguments[i]);
+            }
+            return this.grammar[funcName].apply(this, args);
+        }finally{
+            this._outRule();
         }
-        return func.apply(this, args);
+    },
+    
+    _inRule:function(name){
+        this.stackLevel++;
+        var stack = {
+            startToken: this.la(),
+            ruleName: name,
+            parent: null
+        };
+        if(this.ruleStackCurr)
+            stack.parent = this.ruleStackCurr;
+        this.ruleStackCurr = stack;
+        if(this._verbose && !this.isPredict()){
+            var debugMsg = '';
+            for(var i=0,l=this.stackLevel; i<l; i++)
+                debugMsg += ' |';
+            debugMsg += '-::'+ name +':: ';
+            debugMsg += stack.startToken.typeName() + stack.startToken.position2str();
+            console.log(debugMsg);
+        }
+    },
+    
+    log:function(arg){
+        if(this.isPredict())
+            return;
+        var debugMsg = '';
+        for(var i= -1 ,l=this.stackLevel; i<l; i++)
+            debugMsg += ' |';
+        debugMsg += '- '+ arg;
+        var args = [debugMsg];
+        for(var i=1,l=arguments.length;i<l;i++)
+            args.push(arguments[i]);
+        console.log.apply(console, args);
+        //console.log(debugMsg);
+    },
+    
+    _outRule:function(){
+        this.ruleStackCurr = this.ruleStackCurr.parent;
+        this.stackLevel--;
+    },
+    ruleText:function(){
+        return this.text(this.ruleStackCurr.startToken.pos[0], this.la().pos[0]);
+    },
+    verbose:function(){
+        this._verbose = true;
     }
 };
 
