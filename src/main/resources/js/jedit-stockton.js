@@ -1,6 +1,6 @@
 (function(){
 	"use strict";
-	var logger = java.util.logging.Logger.getLogger("jedit-stockton_js");
+	var logger = java.util.logging.Logger.getLogger("js.jedit-stockton_js");
 try{
 	var lan = java.lang,
 	out = java.lang.System.out,
@@ -32,18 +32,18 @@ try{
 		var fh = new logging.FileHandler(
 			new java.io.File(workdir, "jedit-stockton.log"));
 		fh.setFormatter(new logging.SimpleFormatter());
-		logger.getHandlers().forEach(function(h){
+		jsLog = java.util.logging.Logger.getLogger("js");
+		jsLog.getHandlers().forEach(function(h){
 				out.println(">>>remove log file handler");
-				logger.removeHandler(h);
+				jsLog.removeHandler(h);
 		});
-		logger.addHandler(fh);
+		jsLog.addHandler(fh);
 		
 	})();
 	
 	function log(s){
 		logger.info(s);
 	}
-	
 	
 	
 	function parsePEG(text){
@@ -64,23 +64,47 @@ try{
 	        return parser.parse(text);
 	}
 	
+	function parseLess(text){
+	    var ll = require('less-parser.js');
+	    var parser = ll.create(text);
+	    return parser.parse();
+	}
+	
 	log("Greeting from Javascript ...");
 	__invoker.greets();
 	
+	/**
+	@param result an array
+	[
+	    {
+	        fullName,
+	        name,
+	        start, stop,
+	        child:[
+	        ]
+	    }
+	]
+	*/
 	function buildSidekickTree(uiNode, result){
 		result.forEach(function(el){
-				if(el === null || el === undefined)
+				if(el === null || el === undefined || typeof(el) == 'string')
 					return;
-				uic = new javax.swing.tree.DefaultMutableTreeNode();
-				var showName = el.fullName? el.fullName: (el.name? el.name: '<f>');
-				var sidekick = new sp.SidekickNode(showName, "", showName.charAt(0) =='.'?3:0);
-				sidekick.setStartOffset(el.start);
-				sidekick.setEndOffset(el.stop);
-				uic.setUserObject(sidekick);
-				uiNode.add(uic);
-				if(Array.isArray(el.child)){
-				    buildSidekickTree(uic, el.child);
-				}
+				try{
+                        uic = new javax.swing.tree.DefaultMutableTreeNode();
+                        var showName = el.fullName? el.fullName: (el.name? el.name: '<f>');
+                        var sidekick = new sp.SidekickNode(showName, "", showName.charAt(0) =='.'?3:0);
+                        sidekick.setStartOffset(el.start);
+                        sidekick.setEndOffset(el.stop);
+                        uic.setUserObject(sidekick);
+                        uiNode.add(uic);
+                    }catch(e){
+                        log("[buildSidekickTree] " + JSON.stringify(el));
+                        throw e;
+                    }
+                    if(Array.isArray(el.child)){
+                        buildSidekickTree(uic, el.child);
+                    }
+				
 		});
 	}
 	
@@ -99,6 +123,12 @@ try{
 			        var data = new sd.SideKickParsedData(fname);
 				buildSidekickTree(data.root, r);
 				log("parsing duration "+ (new Date().getTime() - time1) );
+			}else if(fname.length > 4 && fname.substring(fname.length -4).toLowerCase() == '.css'){
+			    var data = new sd.SideKickParsedData(fname);
+			    buildSidekickTree(data.root, parseLess(text));
+			}else if(fname.length > 5 && fname.substring(fname.length -5).toLowerCase() == '.less'){
+			    var data = new sd.SideKickParsedData(fname);
+			    buildSidekickTree(data.root, parseLess(text));
 			}else{
 				var data = new sd.SideKickParsedData('test');
 			}

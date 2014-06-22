@@ -217,8 +217,6 @@ Lexer.prototype = {
     create a new type number or return existing type number
     */
     _tokenType:function(stype){
-        if(stype == 'EOF')
-            debugger;
         if(stype in this.types)
             return this.types[stype];
         var n = this.types[stype] = this.typeIdx ++;
@@ -260,12 +258,24 @@ Token.prototype = {
 function Parser(str, lexerCallback, parserGrammar, channel){
     this.lexer = new Lexer(str, lexerCallback);
     this.currIdx = null;
-    this._next = null;
     this.nestedPredCnt = 0;
     this.channel = channel === undefined? 0 : channel;
     this.ruleStackCurr = null;
     this.stackLevel = -1;
     this.grammar = parserGrammar;
+    
+    this.astNames = {};
+    if(this.grammar.AST)
+        for(var i=this.grammar.AST.length; i; i--)
+            this.astNames[this.grammar.AST[i-1]] = true;
+    
+    this.lexer.moreToken();
+    var next = this.lexer.startToken;
+    while(next.type != EOF && next.channel !== this.channel){
+        this.lexer.moreToken();
+        next = next.next;
+    }
+    this._next = next;
 }
 exports.Parser = Parser;
 Parser.prototype = {
@@ -279,24 +289,20 @@ Parser.prototype = {
         return this.lexer.types[sType];
     },
     
-    nextToken:function(){
-        if(!this._next){
-            this.lexer.moreToken();
-            this._next = this.lexer.startToken;
-        }else{
-            if(!this._next.next)
-                this.lexer.moreToken();
-            this._next = this._next.next;
-        }
-        return this._next;
-    },
+    //nextToken:function(){
+    //    if(!this._next){
+    //        this.lexer.moreToken();
+    //        this._next = this.lexer.startToken;
+    //    }else{
+    //        if(!this._next.next)
+    //            this.lexer.moreToken();
+    //        this._next = this._next.next;
+    //    }
+    //    return this._next;
+    //},
     la:function(index){
         if(index === undefined)
             index = 1;
-        if(!this._next){
-            this.lexer.moreToken();
-            this._next = this.lexer.startToken;
-        }
         //console.log©250('this._next %s %j', this.typeName(this._next.type), this._next.pos); 
         var next = this._next;
         var i = index -1;
@@ -312,6 +318,20 @@ Parser.prototype = {
                 i++;//more rounds
         }
         return next;
+    },
+    
+    lb:function(index){
+        if(index === undefined)
+            index = 1;
+        var prev = this._next;
+        for(var i = index; i; i--){
+            var prev = prev.prev;
+            if(!prev)
+                return prev;
+            if(prev.channel !== this.channel)
+                i++;
+        }
+        return prev;
     },
     
     inTokens:function(typeName1){
@@ -365,21 +385,14 @@ Parser.prototype = {
         }
     },
     
-    isPredict:function(){
+    isPredicate:function(){
         return this.nestedPredCnt >0 ;
     },
     
     _isTypes:function(typesCallback, typesNum){
-        if(!this._next){
-            this.lexer.moreToken();
-            this._next = this.lexer.startToken;
-        }
         var next = this._next;
         for(var i =0, l = typesNum; i<l; i++){
             var ntype = typesCallback.call(this, i);
-            if(next.type == EOF){
-                debugger;
-            }
             if(next.type != EOF && next.channel !== this.channel){
                 next = next.next;
                 i--;//more rounds
@@ -402,13 +415,16 @@ Parser.prototype = {
         return true;
     },
     
-    bnfLoop:function(leastTimes, predFunc, subRule){
-        if(subRule === undefined)
-            subRule = this.advance;
-        while(this.la().type != EOF){
+    bnfLoop:function(leastTimes, predFunc, subRuleFunc){
+        //var elements = [];
+        if(subRuleFunc === undefined)
+            subRuleFunc = this.advance;
+        if(typeof subRuleFunc == 'string')
+            var isRuleName = true;
+        
+        for(var i=0;this.la().type != EOF;i++){
             try{
                 var next = this._next;
-                debugger;
                 var pred = this._pred(predFunc);
                 this._next = next;
                 if(pred === undefined){
@@ -422,19 +438,26 @@ Parser.prototype = {
             }
             if(!pred)
                 break;
-            subRule.call(this);
+            if(isRuleName)
+                this.rule(subRuleFunc);
+            else
+                subRuleFunc.call(this);
+            
+            //elements.push(subRule.call(this));
             leastTimes--;
         }
         if(leastTimes > 0)
             throw new UnexpectToken('unexpect end of BNF '+ this.la());
+        return i;
     },
     
-    expect:function(typeName1){
+    match:function(typeName1){
         for(var i=0,l=arguments.length; i<l; i++){
-            if(this.predToken(arguments[i]))
-                this.advance();
-            else{
-                throw new UnexpectToken('expect "'+ arguments[i] +'", unexpect token: '+ this.la());
+            var next = this._next;
+            var tk = this.advance();
+            if(tk.type != this.tokenType(arguments[i])){
+                this._next = next;
+                throw new UnexpectToken('expect "'+ arguments[i] +'", unexpect token: '+ tk);
             }
         }
     },
@@ -446,12 +469,11 @@ Parser.prototype = {
     advance:function(num){
         if(num === undefined)
             num = 1;
-        var last;
-        for(var i = num; i; i--){
-            last = this.nextToken();
-            if( last.channel !== this.channel)
-                i++;
+        var last = this._next;
+        if(!this.isPredicate() && last.type !== EOF){
+            this.ruleStackCurr.child.push(last.text());
         }
+        this._next = this.la(num+1);
         return last;
     },
     
@@ -462,18 +484,44 @@ Parser.prototype = {
     text:function(startOffset, endOffset){
         return this.lexer.text(startOffset, endOffset);
     },
+    /**
+    if user defined rule function returns nothing (undefined),
+    parse will still return an array (this.ruleStackCurr.child) contains all child AST nodes
     
+        1) if this rule name is in grammar's "AST" list, parser will automatically
+            build an AST tree for this rule, and will be added to parent tree
+            e.g. 
+            {   type: 'parentRuleName',
+                child:[
+                    { type: 'funcName', child: [...] }
+                ]
+            }
+            
+        2) if this rule name is not in grammar's AST list, parser will not build AST
+            tree for this rule, but instead it will move all its child AST nodes to parent
+            rule's AST tree'
+            e.g.
+            {   type: 'parentRuleName',
+                child:[ parentChild1, parentChild2, thisRuleChild...]
+            }
+    @param funcName name of this rule
+    */
     rule:function(funcName, arg0){
         this._inRule(funcName);
+        var ret;
         try{
             var args = [];
             var parser = this;
             for(var i=1,l=arguments.length; i<l; i++){
                 args.push(arguments[i]);
             }
-            return this.grammar[funcName].apply(this, args);
+            ret = this.grammar[funcName].apply(this, args);
+            if(ret === undefined)
+                return this.ruleStackCurr.child;
+            else
+                return ret;
         }finally{
-            this._outRule();
+            this._outRule(funcName, ret);
         }
     },
     
@@ -482,23 +530,31 @@ Parser.prototype = {
         var stack = {
             startToken: this.la(),
             ruleName: name,
-            parent: null
+            parent: null,
+            stopToken: null
+            // child: array of child's ast
+            // ast
         };
         if(this.ruleStackCurr)
             stack.parent = this.ruleStackCurr;
         this.ruleStackCurr = stack;
-        if(this._verbose && !this.isPredict()){
-            var debugMsg = '';
-            for(var i=0,l=this.stackLevel; i<l; i++)
-                debugMsg += ' |';
-            debugMsg += '-::'+ name +':: ';
-            debugMsg += stack.startToken.typeName() + stack.startToken.position2str();
-            console.log(debugMsg);
+        if(!this.isPredicate()){
+            stack.child = [];
+            if(this._verbose){
+                var debugMsg = '';
+                for(var i=0,l=this.stackLevel; i<l; i++)
+                    debugMsg += ' |';
+                debugMsg += '-::'+ name +':: ';
+                debugMsg += stack.startToken.typeName() + stack.startToken.position2str();
+                console.log(debugMsg);
+            }
+            if(this.listener && this.listener.ruleIn)
+                this.listener.ruleIn.call(this, name);
         }
     },
     
     log:function(arg){
-        if(this.isPredict())
+        if(this.isPredicate())
             return;
         var debugMsg = '';
         for(var i= -1 ,l=this.stackLevel; i<l; i++)
@@ -511,15 +567,54 @@ Parser.prototype = {
         //console.log(debugMsg);
     },
     
-    _outRule:function(){
+    _outRule:function(name, ret){
+        this.ruleStackCurr.stopToken = this.lb();
+        if(!this.isPredicate()){
+            if(this.listener && this.listener.ruleOut)
+                this.listener.ruleOut.call(this, name);
+            var p = this.ruleStackCurr.parent;
+            if(p){
+                var pc = p.child, tc = this.ruleStackCurr.child;
+                if(ret){
+                    pc.push(this._onAst(ret));
+                }else if(ret === undefined){
+                    if(this.grammar.AST === undefined || this.astNames[name]){
+                        var ast = {type:name, child: tc};
+                        pc.push(this._onAst(ast));
+                    }else{
+                        for(var i=0,l=tc.length; i<l; i++)
+                            pc.push(tc[i]);
+                    }
+                }
+            }
+        }
         this.ruleStackCurr = this.ruleStackCurr.parent;
         this.stackLevel--;
+    
     },
+    
     ruleText:function(){
-        return this.text(this.ruleStackCurr.startToken.pos[0], this.la().pos[0]);
+        return this.text(this.ruleStackCurr.startToken.pos[0], this.lb().pos[1]);
     },
     verbose:function(){
         this._verbose = true;
+    },
+    _onAst:function(astOrRet){
+        if(this.listener && this.listener.ast)
+            var ret = this.listener.ast.call(this, astOrRet, this.ruleStackCurr);
+        return ret === undefined? astOrRet: ret;
+    },
+    /**
+    @param handler should be an object which contains two function members
+    {
+        ruleIn:function(ruleName, parser){ }
+        ruleOut:function(ruleName, parser){ }
+        ast:function(ast, stack){}
+    }
+    During parsing, the 'this' context for these listener method will be parser instance
+    */
+    setListener:function(handler){
+        this.listener = handler;
     }
 };
 

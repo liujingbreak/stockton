@@ -57,27 +57,28 @@ public class JavaScriptInvoker{
 	}
 	
 	public Object requireJs(String jsFile){
-			Scriptable exp = jsExports.get(jsFile);
-			if(exp != null)
-					return exp;
-			Context cx = Context.enter();
-			try{
-					cx.setOptimizationLevel(5);
-					File f = loadJs(jsFile);
-					Scriptable sp = cx.initStandardObjects();
-					setupInitScope(cx, sp);
-					cx.evaluateReader(sp, new FileReader(f), jsFile, 1, null);
-					Scriptable module = (Scriptable) ScriptableObject.getProperty(sp, "module");
-					exp = (Scriptable) module.get("exports", module);
-					jsExports.put(jsFile, exp);
-					
-					return cx.javaToJS(exp, sp);
-			}catch(Exception ex){
-					log.log(Level.SEVERE, "", ex);
-					return null;
-			}finally {
-				Context.exit();
-			}
+	    log.fine("requireJs "+jsFile);
+		Scriptable exp = jsExports.get(jsFile);
+		if(exp != null)
+				return exp;
+		Context cx = Context.enter();
+		try{
+				cx.setOptimizationLevel(5);
+				File f = loadJs(jsFile);
+				Scriptable sp = cx.initStandardObjects();
+				setupInitScope(cx, sp, jsFile);
+				cx.evaluateReader(sp, new FileReader(f), jsFile, 1, null);
+				Scriptable module = (Scriptable) ScriptableObject.getProperty(sp, "module");
+				exp = (Scriptable) module.get("exports", module);
+				jsExports.put(jsFile, exp);
+				
+				return cx.javaToJS(exp, sp);
+		}catch(Exception ex){
+				log.log(Level.SEVERE, "", ex);
+				return null;
+		}finally {
+			Context.exit();
+		}
 	}
 	
 	public void clearJsExports(){
@@ -85,7 +86,7 @@ public class JavaScriptInvoker{
 			log.fine("clear Js Exports");
 	}
 	
-	protected void setupInitScope(Context cx, Scriptable sp)throws 
+	protected void setupInitScope(Context cx, Scriptable sp, String fileName)throws 
 	java.io.UnsupportedEncodingException,
 	java.io.IOException
 	{
@@ -94,9 +95,11 @@ public class JavaScriptInvoker{
 							JavaScriptInvoker.class.getResourceAsStream("/js/initscope.js"), "utf-8"),
 							"/js/initscope.js", 1, null);
 			}
+			ScriptableObject.putProperty(sp, "__fileName", fileName);
 			initScope.exec(cx, sp);
 			Object wrappedOut = cx.javaToJS(this, sp);
 			ScriptableObject.putProperty(sp, "__invoker", wrappedOut);
+			
 	}
 	
 	public void greets(){
@@ -120,7 +123,7 @@ public class JavaScriptInvoker{
 				// new scope
 				scope = cx.initStandardObjects();
 				
-				setupInitScope(cx, scope);
+				setupInitScope(cx, scope, "Stockton");
 			
 				Object r = cx.evaluateReader(scope, new FileReader(f), jsname, 1, null);
 				log.info("return js eval : "+r.getClass().getName());
