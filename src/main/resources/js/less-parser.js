@@ -32,9 +32,17 @@ var grammar = {
     
     
     cssSelector:function (){
-        
+        var lastToken = this.la().prev;
+        while(lastToken != null && lastToken.channel === 1){
+            if(lastToken != null && lastToken.typeName() == 'comment'){
+                var doc = lastToken.text();
+                break;
+            }else
+                lastToken = lastToken.prev;
+        }
         var sel = this.rule('selector');
-        
+        if(doc)
+            this.log('doc='+doc)
         if(this.predToken('(')){
             this.advance();
             var params = '';
@@ -43,7 +51,7 @@ var grammar = {
             }, function(){
                 params += this.advance().text();
             });
-            this.log('params='+ params);
+            //this.log('params='+ params);
             this.match(')');
             if(this.predToken(';')){
                 this.advance();
@@ -53,13 +61,13 @@ var grammar = {
                 this.match('{');
                 var content = this.rule('content', '}');
                 this.match('}');
-                return {type:'functionDef', name: sel + '('+ params +')', child:content};
+                return {type:'functionDef', name: sel + '('+ params +')', doc:doc, child:content};
             }
         }else{
             this.match('{');
             var content = this.rule('content', '}');
             this.match('}');
-            return {type:'cssSelector', name:sel, child: content};
+            return {type:'cssSelector', name:sel, doc:doc, child: content};
         }
     },
     
@@ -228,20 +236,28 @@ exports.create = function(str){
     
     function comment(lex){
         lex.advance(2);
+        var content = '';
         lex.bnfLoop(0, function(){
                 return !this.predChar('*', '/');
+        }, function(){
+            content += lex.advance();
         });
         lex.advance(2);
-        lex.emitToken('comment', 1);
+        var t = lex.emitToken('comment', 1);
+        t.text(content);
     }
     
     function lineComment(lex){
         lex.advance(2);
+        var content = '';
         lex.bnfLoop(0, function(){
                 return this.la() != '\n';
+        }, function(){
+            content += lex.advance();
         });
         lex.advance();
-        lex.emitToken('comment', 1);
+        var t = lex.emitToken('comment', 1);
+        t.text(content);
     }
     
     function isLetter(c){

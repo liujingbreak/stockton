@@ -130,6 +130,7 @@ Lexer.prototype = {
             this.offset++;
             
         }
+        return this.input[this.offset - 1];
         //console.log('advance offset=%d', this.offset);
     },
     unexpect:function(msg){
@@ -170,6 +171,8 @@ Lexer.prototype = {
     /**
     @param stype token type name
     @param channel default channel is 0, if you want to indicate this token as skipped token like white space, put it as any number other than 0
+    @return newly created token
+    you can manupilate returned token like set text by calling .text(string) 
     */
     emitToken:function(stype, channel, startOff, startLine, endOff, endLine, startCol, endCol){
         if(startOff === undefined){
@@ -199,14 +202,14 @@ Lexer.prototype = {
         this.startOff = this.offset;
         this.startLine = this.lineno;
         this.startCol = this.col;
-        
+        return token;
     },
     
     /**
     @param token | startOffset, endOffset
     */
     text:function(token){
-        if(arguments.length == 1){
+        if(arguments.length == 1 && token instanceof Token){
             var pos = token.pos;
             return this.input.slice(pos[0], pos[1]).join('');
         }else{
@@ -235,7 +238,15 @@ Token.prototype = {
             return 'EOF';
         return this.lexer.typeNames[this.type];
     },
-    text:function(){
+    text:function(text){
+        if(text !== undefined)
+            this._text = text;
+        if(this._text)
+            return this._text;
+        else
+            return this.rawText();
+    },
+    rawText:function(){
         return this.lexer.text(this);
     },
     toString:function(){
@@ -475,10 +486,6 @@ Parser.prototype = {
         }
         this._next = this.la(num+1);
         return last;
-    },
-    
-    textOf:function(token){
-        return this.lexer.text(token);
     },
     
     text:function(startOffset, endOffset){
