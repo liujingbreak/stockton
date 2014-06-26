@@ -21,7 +21,7 @@ var grammar = {
             if(this.predToken('varname'))
                 ret.push(this.rule('cssRule'));
             else if(this.predRule('style')){
-                ret.push(this.rule('style'));
+                this.rule('style');
             }else if(this.inTokens(';')){
                 this.log('WARNING: bad format '+ this.la());
                 this.advance();
@@ -54,7 +54,7 @@ var grammar = {
             var content = this.rule('content', '}');
             this.match('}');
             for(var i=0,l=sels.length;i<l;i++){
-                ret.push({type:'cssSelector', name:sels[i], doc:doc, child: []});
+                ret.push({type:'cssSelector', name:sels[i], child: []});
             }
             ret[l - 1].child = content;
             return ret;
@@ -65,6 +65,7 @@ var grammar = {
         }
         else{
             this.unexpect(this.la());
+            return null;
         }
     },
     
