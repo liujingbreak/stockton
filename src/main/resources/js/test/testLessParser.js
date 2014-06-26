@@ -5,10 +5,9 @@ var str = fs.readFileSync('./test.less', {encoding: 'utf-8'});
 
 var lessParserLib = require('../less-parser.js');
 var parser = lessParserLib.create(str);
-//parser.verbose();
+    //parser.verbose();
 var r = parser.parse();
-debugger;
-//console.log(JSON.stringify(r, null, '  '));
+console.log(JSON.stringify(r, null, '  '));
 
 //do{
 //    var token = this.nextToken();

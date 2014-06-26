@@ -14,60 +14,57 @@ var grammar = {
     },
     
     content:function (endType){
+        var ret = [];
         this.bnfLoop(0, function(){
                 return !this.predToken(endType);
         }, function(){
             if(this.predToken('varname'))
-                this.rule('cssRule');
+                ret.push(this.rule('cssRule'));
             else if(this.predRule('style')){
-                this.rule('style');
+                ret.push(this.rule('style'));
             }else if(this.inTokens(';')){
                 this.log('WARNING: bad format '+ this.la());
                 this.advance();
             }else{
-                this.rule('cssSelector');
+                var list = this.rule('cssSelector');
+                for(var i=0,l=list.length;i<l;i++)
+                    ret.push(list[i]);
             }
         });
+        return ret;
     },
     
     
+    
     cssSelector:function (){
+        var ret = [];
         var lastToken = this.la().prev;
         while(lastToken != null && lastToken.channel === 1){
-            if(lastToken != null && lastToken.typeName() == 'comment'){
+            if(lastToken != null && lastToken.typeName() == 'doc'){
                 var doc = lastToken.text();
                 break;
             }else
                 lastToken = lastToken.prev;
         }
-        var sel = this.rule('selector');
+        var sels = this.rule('selectors');
         if(doc)
             this.log('doc='+doc)
-        if(this.predToken('(')){
+        if(this.inTokens('{')){
             this.advance();
-            var params = '';
-            this.bnfLoop(0, function(){
-                    return !this.predToken(')');
-            }, function(){
-                params += this.advance().text();
-            });
-            //this.log('params='+ params);
-            this.match(')');
-            if(this.predToken(';')){
-                this.advance();
-                return {type:'functionCall', name: sel + '('+ params +')'};
-            }else{
-                this.log('[cssSelector func def] '+ this.ruleText());
-                this.match('{');
-                var content = this.rule('content', '}');
-                this.match('}');
-                return {type:'functionDef', name: sel + '('+ params +')', doc:doc, child:content};
-            }
-        }else{
-            this.match('{');
             var content = this.rule('content', '}');
             this.match('}');
-            return {type:'cssSelector', name:sel, doc:doc, child: content};
+            for(var i=0,l=sels.length;i<l;i++){
+                ret.push({type:'cssSelector', name:sels[i], doc:doc, child: []});
+            }
+            ret[l - 1].child = content;
+            return ret;
+        }
+        else if(this.predToken(';')){
+            this.advance();
+            return [{type:'functionCall', name: sels.join(',')}];
+        }
+        else{
+            this.unexpect(this.la());
         }
     },
     
@@ -100,12 +97,21 @@ var grammar = {
         return this.ruleText();
     },
     
-    selector: function(){
+    selectors: function(){
+        var ret = [this.rule('selector')];
         
-        this.bnfLoop(1, function(){
-                return ! this.inTokens('{', '}','(',')', ';');
+        this.bnfLoop(0, function(){
+                return this.inTokens(',');
+        },function(){
+            this.advance();
+            ret.push(this.rule('selector'));
         });
-        
+        return ret;
+    },
+    selector: function(){
+        this.bnfLoop(1, function(){
+                return ! this.inTokens('{', '}', ',', ';');
+        });
         return this.ruleText();
     },
     
@@ -157,6 +163,10 @@ exports.create = function(str){
                 comment.call(this, lex);
             else if(this.la(2) == '/')
                 lineComment(lex);
+            else{
+                lex.advance();
+                lex.emitToken(c);
+            }
         }
         else if( isID(c)){
             ID(lex);
@@ -171,24 +181,24 @@ exports.create = function(str){
                     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
             });
             lex.emitToken('WS', 1);
+            return;
         }else if(c == '@'){
             varname(lex);
         }else{
             switch(c){
-            case '#':
+            case '(':
+                parentheses(lex);
+                break;
+            //case '#':
             case '=':
             case '{':
             case '}':
             case ';':
             case ':':
-            case '(':
-            case ')':
+            case ',':
                 lex.advance();
                 lex.emitToken(c);
-                break;
-            default:
-                lex.advance();
-                lex.emitToken('[*]');
+                return;
             }
         }
     }, grammar);
@@ -219,6 +229,19 @@ exports.create = function(str){
         lex.emitToken('className');
     }
     
+    function parentheses(lex){
+        lex.advance();
+        lex.bnfLoop(0, function(){ return !this.predChar(')'); },
+            function(){
+                if(lex.predChar('('))
+                    parentheses(lex);
+                else
+                    var t = lex.advance();
+                //this.log(t.text());
+            });
+        lex.match(')');
+        lex.emitToken('()');
+    }
     function stringLit(lex){
         var start = lex.la();
         lex.advance();
@@ -236,14 +259,19 @@ exports.create = function(str){
     
     function comment(lex){
         lex.advance(2);
-        var content = '';
+        var content = '', type = 'comment';
+        if(lex.la() == '*' && lex.la(2) != '/'){
+            type = 'doc';
+            lex.advance();
+        }
+        
         lex.bnfLoop(0, function(){
                 return !this.predChar('*', '/');
         }, function(){
             content += lex.advance();
         });
         lex.advance(2);
-        var t = lex.emitToken('comment', 1);
+        var t = lex.emitToken(type, 1);
         t.text(content);
     }
     

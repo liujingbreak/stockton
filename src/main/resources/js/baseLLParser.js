@@ -59,6 +59,11 @@ function Lexer(str, callback){
     this.types = {'EOF': EOF};
     this.typeIdx = 0;
     this.typeNames = [];
+    
+    this.escapedCol = null;
+    this.escapedOffset = null;
+    this.escapedLine = null;
+    
     //this.nextChar = null;
     for(var i = 0, l = str.length; i<l; i++){
         this.input[i] = str.charAt(i);
@@ -70,15 +75,35 @@ Lexer.prototype = {
     EOF: EOF,
     moreToken:function(){
         try{
-            var c = this.la();
-            if(c == EOF){
-                this.emitToken('EOF');
-                return;
+            while(true){
+                var oldTokenIdx = this.tokenIndex;
+                var c = this.la();
+                if(c == EOF){
+                    this.emitToken('EOF');
+                    return;
+                }
+                if(this.callback)
+                    this.callback(this, this, c);
+                else
+                    throw new Error('not implemented');
+                if(this.tokenIndex == oldTokenIdx){
+                    
+                    //no emitToken called, consider as escaped char
+                    if(this.escapedOffset == null){
+                        this.escapedOffset = this.startOff;
+                        this.escapedLine = this.startLine;
+                        this.escapedCol = this.startCol;
+                        //console.log('here ='+ this.tokenIndex + ', offset='+ this.startOff);
+                    }
+                    //throw new Error('lexer must emit at least 1 token everytime');
+                    this.advance();
+                    this.startOff = this.offset;
+                    this.startLine = this.lineno;
+                    this.startCol = this.col;
+                }else{
+                    break;
+                }
             }
-            if(this.callback)
-                this.callback(this, this, c);
-            else
-                throw new Error('not implemented');
         }catch(e){
             if(e.name == 'UnexpectLex'){
                 console.log('Lexer fails due to above exception');
@@ -133,6 +158,12 @@ Lexer.prototype = {
         return this.input[this.offset - 1];
         //console.log('advance offset=%d', this.offset);
     },
+    match:function(chr){
+        if(this.la() != chr)
+            this.unexpect('');
+        else
+            this.advance();
+    },
     unexpect:function(msg){
         chr = this.la();
         if(chr == EOF)
@@ -174,7 +205,21 @@ Lexer.prototype = {
     @return newly created token
     you can manupilate returned token like set text by calling .text(string) 
     */
-    emitToken:function(stype, channel, startOff, startLine, endOff, endLine, startCol, endCol){
+    emitToken:function(stype, channel){
+        if(this.escapedOffset != null){
+            var tk = this._emitToken('<UNK>', 0, this.escapedOffset, this.escapedLine, this.escapedCol,
+                this.startOff, this.startLine, this.startCol);
+            this.escapedOffset = null;
+            this.escapedLine = null;
+            this.escapedCol = null;
+            //console.log('UNK: '+ tk);
+        }
+        var token = this._emitToken.apply(this, arguments);
+        //console.log('#'+ token.toString());
+        return token;
+    },
+    
+    _emitToken:function(stype, channel, startOff, startLine, startCol, endOff, endLine, endCol){
         if(startOff === undefined){
             startOff = this.startOff;
             startLine = this.startLine;
@@ -183,6 +228,7 @@ Lexer.prototype = {
             endLine = this.lineno;
             endCol = this.col;
         }
+        
         if(channel === undefined)
             channel = 0;
         var token = new Token({
@@ -199,9 +245,9 @@ Lexer.prototype = {
         this.lastToken = token;
         if(!this.startToken)
             this.startToken = token;
-        this.startOff = this.offset;
-        this.startLine = this.lineno;
-        this.startCol = this.col;
+        this.startOff = endOff;
+        this.startLine = endLine;
+        this.startCol = endCol;
         return token;
     },
     
@@ -324,6 +370,11 @@ Parser.prototype = {
                 return next;
             if(!next.next)
                 this.lexer.moreToken();
+            if(next.next == null){
+                console.log('token does not have next '+ next);
+                debugger;
+                this.lexer.moreToken();
+            }
             next = next.next;
             if(next.channel !== this.channel)
                 i++;//more rounds
