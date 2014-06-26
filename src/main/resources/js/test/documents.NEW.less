@@ -1,0 +1,525 @@
+/* possibly something is outdated here... */
+
+html {
+    background: #fbfbfb;
+    color: #333;
+    .page {
+        .body {
+            & > h2 {
+                border-bottom: 0 none;
+                margin-bottom: 10px !important;
+            }
+
+            #addManual {
+                margin-top: 0;
+            }
+
+            .invoice.outerinvoice {
+                background: white;
+                box-shadow: 0 0 4px rgba(0,0,0,0.23);
+            }
+            #documentlinetable, .invoicelineswrap {
+                & > table.list, & > table.invoicelines {
+                    position: relative;
+                    th {
+                        text-transform: none;
+                        line-height: 16px;
+                        vertical-align: bottom;
+                        height: 60px;
+                        font-size: 12px;
+                        color: #707070;
+                    }
+                    td, th {
+                        min-height: 30px !important;
+                        background: transparent !important;
+                        &.col_options, &.col_delete {
+                            width: 22px !important;
+                            position: relative !important;
+                            .optionstoggle {
+                                position: absolute;
+                                left: 7px;
+                                z-index: 800 !important;
+                            }
+                        }
+                        &.col_delete {
+                            padding-top: 6px !important;
+                            & > a {
+                                position: absolute;
+                                right: 8px;
+                                z-index: 800 !important;
+                                width: 18px !important;
+                                height: 18px !important;
+                            }
+                        }
+                        &.input_item_id {
+                            padding-left: 0 !important;
+                        }
+                        &.input_item_total {
+                            padding-right: 0 !important;
+                        }
+                        &.input_item_unitcode .focus, &.input_item_tax .focus {
+                            background: transparent !important;
+                        }
+                        select {
+                            display: block;
+                            margin-top: 0 !important;
+                            margin-bottom: 0 !important;
+                            padding-bottom: 0 !important;
+                            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) inset !important;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                        }
+                    }
+                    tr.js-line-meta, .documentadjustment .input_item_id {
+                        .focus {
+                            background: transparent !important;
+                        }
+                    }
+                    .centerSelects() { //vertically centers selects
+                        .form-item {                                
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            padding-top: 5px !important;
+                            height: 30px !important;
+                            .form-element {
+                                height: 24px !important;
+                                padding-top: 4px !important;
+                                margin-top: 6px !important;
+                                margin-bottom: 0 !important;
+                                padding-bottom: 0 !important;
+                            }
+                        }
+                    }
+                    tr.adjustments, tr.adjustmentsmeta {
+                        td {
+                            &.input_item_id, &.input_item_unitcode, &.input_item_tax {
+                                .centerSelects();       
+                            }
+                            &.input_item_price {
+                                padding-right: 11px !important;
+                            }
+                            &.input_item_price, &.input_item_total {
+                                padding-top: 2px !important;
+                            }
+                        }
+                    }
+                    tr {
+                        td {
+                            &.input_item_unitcode, &.input_item_tax {
+                                .centerSelects();
+                            }
+                        }
+                    }
+                    tr.js-line-meta.adjustmentsmeta {
+                        &, td {
+                            margin: 0 !important;
+                            margin-bottom: 10px !important;
+                            padding: 0 !important;
+                            .unit {
+                                height: 40px;
+                                .form-item {
+                                    padding-top: 10px !important;
+                                }
+                            }
+                        }
+                    }
+                    tr.js-line-adjustment.adjustments {
+                        height: 30px !important;
+                        td {
+                            line-height: 30px !important;
+                            &.small {
+                                height: 30px !important;
+                                .form-item {
+                                    margin-top: 7px !important;
+                                    height: 16px !important;
+                                }
+                            }
+                            &.input_item_id {
+                                padding-left: 0 !important;
+                                padding-top: 10px !important;
+                                padding-bottom: 10px !important;
+                                font-size: 12px !important;
+                                line-height: 14px !important;
+                            }
+                            &.input_item_desc, &.input_item_amount {
+                                .form-element {
+                                    padding-left: 4px !important;
+                                }
+                            }
+                            &.input_item_unitcode {
+                                margin-top: 0 !important;
+                                margin-bottom: 0 !important;
+                                padding-top: 0 !important;
+                                padding-bottom: 0 !important;
+                                height: 30px !important;
+                                .form-item {
+                                    @selectHeight: 23px;
+                                    height: @selectHeight !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    padding-top: 7px !important;
+                                    .form-element {
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        height: @selectHeight !important;
+                                        select {
+                                            height: @selectHeight !important;
+                                            line-height: @selectHeight !important;
+                                            margin: 0 !important;
+                                            padding: 0 !important;
+                                        }
+                                    }
+                                }
+                            }
+                            &.input_item_price {
+                                font-size: 14px;
+                                line-height: 14px;
+                            }
+                            &.col_delete {
+                                padding-top: 7px !important;
+                            }
+                        }
+                    }
+                    tr.documentadjustment.js-adjustment.adjustments {
+                        td {
+                            .form-item {
+                                margin-bottom: 9px !important;
+                            }
+                            &.col_delete {
+                                & > a {
+                                    margin-top: 12px !important;
+                                }
+                            }
+                            &.input_item_desc, &.input_item_amount {
+                                .form-element {
+                                    padding-left: 4px !important;
+                                }
+                            }
+                            &.input_item_total {
+                                padding-top: 11px !important;
+                            }
+                        }
+                    }
+                    .hovercolor td, .hovercolor td.col_delete {
+                        background: #dceffb !important;
+                        background: rgba(78,173,237,0.2) !important;
+                    }
+                    .hover td, .hover td.col_delete {
+                        background: #cae6fc !important;
+                        background: rgba(78,173,237,0.3) !important;
+                    }
+                    .hover td.col_delete a {
+                        background: url('../images/icon_delete.png') no-repeat scroll 0 0 transparent !important;   
+                    }
+                    td .optionstoggle {
+                        margin-top: 11px !important;
+                        background: url('../images/icon_open.png') no-repeat scroll 0 0 transparent !important;
+                    }
+                    td .optionstoggle.expanded {
+                        background: url('../images/icon_close.png') no-repeat scroll 0 0 transparent !important;
+                    }
+                    tr.hover.divider_row td {
+                        background: transparent !important;
+                        background: rgba(0,0,0,0) !important;
+                    }
+                    tr.divider_row .ruler {
+                        border-bottom: 1px dotted #E0E0E0;
+                        margin: 3px 0;
+                    }
+                }
+                td, .invoice_actions {
+                    background: transparent;
+                }
+                .invoice_actions { // add new line button
+                    float: left;
+                    width: 420px;
+                    padding: 10px 0 0 30px;
+                    margin: 0;
+                    .tst-addLine {
+                        color: white !important;
+                    }
+                    .tst-adddiscount {
+                        margin-left: 10px;
+                    }
+                }
+                .invoice_actions + div.line { // totals container
+                    width: 500px;
+                    float: right;
+                    padding: 13px 30px 0 0;
+                    margin: 0;
+                    .tidylist.right.invoice_totals {
+                        width: 395px;
+                        margin: 0;
+                        padding: 0;
+                        li.total {
+                            border-bottom: 3px double #3F3F3F !important;
+                        }
+                    }
+                }
+                & + .ruler {
+                    clear: both;
+                }
+            }
+            .onion .footer.box.colored {
+                border-radius: 0 0 5px 5px !important;
+            }
+
+            .onion .footer.box.colored.noprint {
+                border-radius: 5px 5px 0 0 !important;
+            }
+
+            h3, h4, h5, .paymentmean .keyval .key {
+                text-transform: none;
+            }
+             //preview stuff
+            .invoicelineswrap, .invoice_totalswrap, .documentlinesfoot {
+                background: transparent !important;
+                li.total {
+                    border-bottom: 3px double #3F3F3F !important;
+                }
+            }
+            .js-document + .ruler {
+                display: none;
+            }
+            .document-topbar, .tst-ALARM-conversation {
+                display: block !important;
+                position: relative !important;
+                background-color: rgba(240,240,211,0.7) !important;
+                background-image: url("../images/onion/noise.png") !important;
+                background-attachment: fixed !important;
+                width: 100% !important;
+                padding: 30px !important;
+                border-radius: 5px !important;
+                border: 0 none !important;
+                box-shadow: inset 0 0 1px rgba(51,51,51,0.2) !important;
+                -webkit-box-sizing: border-box;
+                -ms-box-sizing: border-box;
+                -o-box-sizing: border-box;
+                -moz-box-sizing: border-box;
+                box-sizing: border-box;
+                height: 79px !important;
+            }
+            .tst-ALARM-conversation {
+                height: 0 !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                background: transparent !important;
+                box-shadow: 0 0 0 !important;
+            }
+            .line.tmarg {
+                .box.left.tmarg {
+                    padding-left: 0 !important;
+                }
+                .box.right.tmarg {
+                    padding-right: 0 !important;
+                }
+            }
+            .invoice.outerinvoice {
+                position: relative;
+                padding: 30px;
+                h2 {
+                    font-size: 36px;
+                    line-height: 44px;
+                    padding-bottom: 17px;
+                    border-bottom: 1px solid red;
+                }
+                h5 {
+                    color: #707070;
+                    font-size: 12px;
+                    line-height: 16px;
+                }
+                .connections {
+                    .customer {
+                        width: 270px;
+                    }
+                    .supplier {
+                        width: 270px;
+                    }
+                    & + .unit.nomargin {
+                        
+                    }
+                }
+                .line.tmarg {
+                    .left.size360 {
+                        h3 {
+                            color: #707070;
+                        }
+                        
+                        width: 330px;
+                    }
+                    .left.notes.container {
+                        
+                        width: 495px;
+                    }
+                }
+            }
+            /*
+            .line.tmarg.notes {
+                margin-left: 30px !important;
+                margin-right: 30px !important;
+            }
+            */
+            div[typeof="ts:Order"] {
+                .line.tmarg {
+                    .left.notes.bmarg30 {
+                        width: 495px;
+                        /*margin-right: 30px !important;*/
+                    }
+                }
+            }
+            #js-conversationview {
+                .left.notes.container {
+                    width: 520px !important;
+                }
+                div[typeof="ts:Order"] {
+                    .line.tmarg {
+                        .left.notes.bmarg30 {
+                            width: 520px;
+                            /*margin-right: 30px !important;*/
+                        }
+                    }
+                }
+            }
+            .stream .story .conversation {
+                margin-left: 20px !important;
+            }
+            .stream .story .arrow {
+                margin-left: 40px !important;
+            }
+            table.invoicelines {
+                tr.documentline {
+                    td.description {
+                        padding-top: 5px !important;
+                        padding-bottom: 5px !important;
+                        line-height: 20px !important;
+                    }
+                }
+            }
+            .paypalpayment {
+                .form-item {
+                    padding-left: 1px;
+                }
+                .noneligible {
+                    margin-left: 34px;
+                    display: inline-block;
+                    background: #ffc;
+                    color: #787878;
+                    font-size: 12px;
+                    line-height: 14px;
+                    span {
+                        font-style: italic;
+                    }
+                }
+                p.description {
+                    margin-left: 35px;
+                }
+            }
+            .paymentmean .keyval {
+                .key, .val {
+                    line-height:16px !important;
+                    padding-top:5px;
+                    padding-bottom:5px;
+                }
+            }
+        }
+    }
+}
+
+html.ie7, html.ie8 {
+    .page {
+        .body {
+            & > form, & > #js-conversationview > .outerdocument .invoice.outerinvoice {
+                background: white !important;
+                outline: 2px solid #e6e6e6 !important;
+                padding-top: 30px !important;
+                padding-bottom: 0 !important;
+            }
+            .document-topbar {
+                background-image: url("../images/onion/noise-ie.png") !important;
+            }
+            .line .left.size475 {
+                width: 470px !important;
+            }
+            .connections {
+                .customer {
+                    margin-left: 30px !important;
+                    width: 260px !important;
+                }
+                .supplier {
+                    width: 260px !important;
+                }
+                & + .unit.nomargin {
+                    margin-right: 30px !important;
+                }
+            }
+            .onion .footer.box.colored {
+                margin-bottom: 0 !important;
+            }
+            .tst-preview-header {
+                margin-top: -50px !important;
+            }
+        }
+    }
+}
+.connection-vcards {
+    h5 {
+        margin-bottom: 5px;
+    }    
+}
+.connection-vcard {
+    padding: 15px;
+    border: 1px dotted #ddd;
+    margin-bottom: 20px;
+    img {
+        display: block;
+    }
+    .businesscard {
+        h3 {
+            span {
+                font-size: 14px !important;
+                backgroun-color: yellow;
+            }
+            a {
+                text-decoration: none;
+                &:hover {
+                    text-decoration: underline;
+                }
+            }
+        }
+    }
+}
+/*
+html.ie7 {
+    .page {
+        .body {
+            .document-topbar, .tst-ALARM-conversation {
+                height: 19px !important;
+                width: 900px !important;
+            }
+            .invoice.outerinvoice {
+                .logohead {
+                    margin-left: 0 !important;
+                    margin-right: 0 !important;
+                    h2.unit.left {
+                        display: block !important;
+                        padding-left: 30px !important;
+                        margin-left: 0 !important;
+                    }
+                    .unit.right {
+                        display: block !important;
+                        padding-right: 30px !important; 
+                        margin-right: 0 !important;
+                    }
+                }
+            }
+            .stream .story .arrow {
+                position: relative !important;
+                left: 80px !important;
+                top: 1px !important;
+            }
+        }
+    }
+}
+*/
