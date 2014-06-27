@@ -14,24 +14,21 @@ var grammar = {
     },
     
     content:function (endType){
-        var ret = [];
         this.bnfLoop(0, function(){
                 return !this.predToken(endType);
         }, function(){
             if(this.predToken('varname'))
-                ret.push(this.rule('cssRule'));
+                this.rule('cssRule');
             else if(this.predRule('style')){
                 this.rule('style');
             }else if(this.inTokens(';')){
                 this.log('WARNING: bad format '+ this.la());
                 this.advance();
             }else{
-                var list = this.rule('cssSelector');
-                for(var i=0,l=list.length;i<l;i++)
-                    ret.push(list[i]);
+                this.rule('cssSelector');
             }
         });
-        return ret;
+        return null;
     },
     
     
@@ -47,21 +44,22 @@ var grammar = {
                 lastToken = lastToken.prev;
         }
         var sels = this.rule('selectors');
+        this.log('sels = '+ sels);
         if(doc)
             this.log('doc='+doc)
         if(this.inTokens('{')){
             this.advance();
             var content = this.rule('content', '}');
             this.match('}');
-            for(var i=0,l=sels.length;i<l;i++){
-                ret.push({type:'cssSelector', name:sels[i], child: []});
+            for(var i=0,l=sels.result.length;i<l;i++){
+                ret.push({type:'cssSelector', name:sels.result[i], child: []});
             }
             ret[l - 1].child = content;
             return ret;
         }
         else if(this.predToken(';')){
             this.advance();
-            return [{type:'functionCall', name: sels.join(',')}];
+            return [{type:'functionCall', name: sels.result.join(',')}];
         }
         else{
             this.unexpect(this.la());
@@ -71,9 +69,9 @@ var grammar = {
     
     
     style:function(){
-        var prop = this.rule('property');
+        this.rule('property');
         this.match(':');
-        var val = this.rule('value');
+        this.rule('value');
         if(this.predToken(';')){
             this.advance();
         }else if(this.inTokens('}', 'EOF')){
@@ -308,10 +306,11 @@ exports.create = function(str){
                 //this.log(name + '>');
             },
             ast:function(ast, stack){
-                if(ast.type != null){
-                    ast.start = stack.startToken.pos[0];
-                    ast.stop = stack.stopToken.pos[1];
-                }
+                console.log('ast(): '+ (stack.stopToken != null));
+                //if(ast.type != null){
+                //    ast.start = stack.startToken.pos[0];
+                //    ast.stop = stack.stopToken.pos[1];
+                //}
                 return ast;
             }
     });

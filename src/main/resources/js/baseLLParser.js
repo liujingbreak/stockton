@@ -574,10 +574,9 @@ Parser.prototype = {
                 args.push(arguments[i]);
             }
             ret = this.grammar[funcName].apply(this, args);
-            if(ret === undefined)
-                return this.ruleStackCurr.child;
-            else
-                return ret;
+            
+            var result = this._wrapResult(this.ruleStackCurr, ret);
+            return result;
         }finally{
             this._outRule(funcName, ret);
         }
@@ -611,6 +610,50 @@ Parser.prototype = {
         }
     },
     
+    _wrapResult:function(stack, ret){
+        stack.stopToken = this.lb();
+        this.log('_wrapResult ');
+        var r = ret === undefined? stack.child : ret;
+        return {
+            result: this._onAst(ret),
+            startToken: stack.startToken,
+            stopToken: stack.stopToken,
+            text: function(){
+                return this.text(stack.startToken.pos[0], stack.stopToken.pos[0]);
+            }
+        }
+    },
+
+    _outRule:function(name, ret){
+        this.log('not null='+ this.ruleStackCurr.stopToken !=null );
+        if(this.ruleStackCurr.stopToken == null)
+            throw new Error('nullpoint');
+        if(!this.isPredicate()){
+            if(this.listener && this.listener.ruleOut)
+                this.listener.ruleOut.call(this, name);
+            var p = this.ruleStackCurr.parent;
+            if(p){
+                var pc = p.child, tc = this.ruleStackCurr.child;
+                if(ret){
+                    if(Array.isArray(ret)){
+                        for(var i=0,l=ret.length; i<l;i++)
+                            pc.push(ret[i]);
+                    }else
+                        pc.push(this._onAst(ret));
+                }else if(ret === undefined &&
+                    (this.grammar.AST === undefined || this.astNames[name])){
+                        var ast = {type:name, child: tc};
+                        pc.push(this._onAst(ast));
+                }else{
+                    for(var i=0,l=tc.length; i<l; i++)
+                        pc.push(tc[i]);
+                }
+            }
+        }
+        this.ruleStackCurr = this.ruleStackCurr.parent;
+        this.stackLevel--;
+    },
+     
     log:function(arg){
         if(this.isPredicate())
             return;
@@ -624,33 +667,7 @@ Parser.prototype = {
         console.log.apply(console, args);
         //console.log(debugMsg);
     },
-    
-    _outRule:function(name, ret){
-        this.ruleStackCurr.stopToken = this.lb();
-        if(!this.isPredicate()){
-            if(this.listener && this.listener.ruleOut)
-                this.listener.ruleOut.call(this, name);
-            var p = this.ruleStackCurr.parent;
-            if(p){
-                var pc = p.child, tc = this.ruleStackCurr.child;
-                if(ret){
-                    pc.push(this._onAst(ret));
-                }else if(ret === undefined){
-                    if(this.grammar.AST === undefined || this.astNames[name]){
-                        var ast = {type:name, child: tc};
-                        pc.push(this._onAst(ast));
-                    }else{
-                        for(var i=0,l=tc.length; i<l; i++)
-                            pc.push(tc[i]);
-                    }
-                }
-            }
-        }
-        this.ruleStackCurr = this.ruleStackCurr.parent;
-        this.stackLevel--;
-    
-    },
-    
+       
     ruleText:function(){
         return this.text(this.ruleStackCurr.startToken.pos[0], this.lb().pos[1]);
     },
