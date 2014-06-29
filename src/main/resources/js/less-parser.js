@@ -5,12 +5,12 @@ var grammar = {
     each name must matches defined rule name, the list will contains name of every parser rule defined by user,
     it means that parser will build all types of AST by name of parser rules by default
     */
-    AST:['cssRule', 'cssSelector','style'],
+    //AST:['cssRule', 'cssSelector','style'],
     
     root:function(){
         var c = this.rule('content', 'EOF');
         this.match('EOF');
-        return c.child;
+        //return c.child;
     },
     
     content:function (endType){
@@ -28,7 +28,7 @@ var grammar = {
                 this.rule('cssSelector');
             }
         });
-        return null;
+        //return null;
     },
     
     
@@ -43,27 +43,23 @@ var grammar = {
             }else
                 lastToken = lastToken.prev;
         }
-        var sels = this.rule('selectors');
-        this.log('sels = '+ sels);
+        this.rule('selectors');
+        //this.log('sels = '+ sels);
         if(doc)
             this.log('doc='+doc)
         if(this.inTokens('{')){
             this.advance();
             var content = this.rule('content', '}');
             this.match('}');
-            for(var i=0,l=sels.result.length;i<l;i++){
-                ret.push({type:'cssSelector', name:sels.result[i], child: []});
-            }
-            ret[l - 1].child = content;
-            return ret;
+            //return ret;
         }
         else if(this.predToken(';')){
             this.advance();
-            return [{type:'functionCall', name: sels.result.join(',')}];
+            //return [{type:'functionCall', name: sels.result.join(',')}];
         }
         else{
             this.unexpect(this.la());
-            return null;
+            //return null;
         }
     },
     
@@ -79,7 +75,7 @@ var grammar = {
         }else{
             this.unexpect(this.la());
         }
-        return null;
+        //return null;
     },
     
     property:function(){
@@ -105,13 +101,13 @@ var grammar = {
             this.advance();
             ret.push(this.rule('selector'));
         });
-        return ret;
+        //return ret;
     },
     selector: function(){
         this.bnfLoop(1, function(){
                 return ! this.inTokens('{', '}', ',', ';');
         });
-        return this.ruleText();
+        //return this.ruleText();
     },
     
     /** type: rule/variable */
@@ -306,7 +302,7 @@ exports.create = function(str){
                 //this.log(name + '>');
             },
             ast:function(ast, stack){
-                console.log('ast(): '+ (stack.stopToken != null));
+                //console.log('ast(): '+ (stack.stopToken != null));
                 //if(ast.type != null){
                 //    ast.start = stack.startToken.pos[0];
                 //    ast.stop = stack.stopToken.pos[1];

@@ -575,7 +575,7 @@ Parser.prototype = {
             }
             ret = this.grammar[funcName].apply(this, args);
             
-            var result = this._wrapResult(this.ruleStackCurr, ret);
+            var result = this._wrapResult(ret);
             return result;
         }finally{
             this._outRule(funcName, ret);
@@ -610,24 +610,26 @@ Parser.prototype = {
         }
     },
     
-    _wrapResult:function(stack, ret){
-        stack.stopToken = this.lb();
-        this.log('_wrapResult ');
-        var r = ret === undefined? stack.child : ret;
-        return {
-            result: this._onAst(ret),
-            startToken: stack.startToken,
-            stopToken: stack.stopToken,
+    _wrapResult:function(ret){
+        var r = ret === undefined? this.ruleStackCurr.child : ret;
+        var start = this.ruleStackCurr.startToken.pos,
+            stop = this.lb().pos,
+            parser = this;
+        return this._onReturn({
+            ruleName: this.ruleStackCurr.ruleName,
+            result: r,
+            start:start,
+            stop:stop,
+            //startToken: stack.startToken,
+            //stopToken: stack.stopToken,
             text: function(){
-                return this.text(stack.startToken.pos[0], stack.stopToken.pos[0]);
+                return parser.text(start[0], stop[1]);
             }
-        }
+        });
     },
 
     _outRule:function(name, ret){
-        this.log('not null='+ this.ruleStackCurr.stopToken !=null );
-        if(this.ruleStackCurr.stopToken == null)
-            throw new Error('nullpoint');
+        this.ruleStackCurr.stopToken = this.lb();
         if(!this.isPredicate()){
             if(this.listener && this.listener.ruleOut)
                 this.listener.ruleOut.call(this, name);
@@ -675,9 +677,10 @@ Parser.prototype = {
         this._verbose = true;
     },
     _onAst:function(astOrRet){
-        if(this.listener && this.listener.ast)
-            var ret = this.listener.ast.call(this, astOrRet, this.ruleStackCurr);
-        return ret === undefined? astOrRet: ret;
+        return astOrRet;
+    },
+    _onReturn:function(ret){
+        return ret;
     },
     /**
     @param handler should be an object which contains two function members
