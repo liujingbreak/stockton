@@ -5,7 +5,7 @@ var grammar = {
     each name must matches defined rule name, the list will contains name of every parser rule defined by user,
     it means that parser will build all types of AST by name of parser rules by default
     */
-    //AST:['cssRule', 'cssSelector','style'],
+    AST:['cssRule', 'cssSelector','selector'],
     
     root:function(){
         var c = this.rule('content', 'EOF');
@@ -75,7 +75,7 @@ var grammar = {
         }else{
             this.unexpect(this.la());
         }
-        //return null;
+        return null;
     },
     
     property:function(){
@@ -294,22 +294,11 @@ exports.create = function(str){
     function isID(c){
         return isLetter(c) || isNum(c) || c == '-' || c == '_';
     }
-    parser.setListener({
-            ruleIn:function(name){
-                //this.log(' >'+ name);
-            },
-            ruleOut:function(name){
-                //this.log(name + '>');
-            },
-            ast:function(ast, stack){
-                //console.log('ast(): '+ (stack.stopToken != null));
-                //if(ast.type != null){
-                //    ast.start = stack.startToken.pos[0];
-                //    ast.stop = stack.stopToken.pos[1];
-                //}
-                return ast;
-            }
-    });
+    parser.onAST = function(stack, ast){
+        ast.start = stack.startToken.pos[0];
+        ast.stop = stack.stopToken.pos[1]
+        return ast;
+    }
     /**
     parse
     */

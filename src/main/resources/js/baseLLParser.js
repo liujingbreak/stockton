@@ -615,7 +615,7 @@ Parser.prototype = {
         var start = this.ruleStackCurr.startToken.pos,
             stop = this.lb().pos,
             parser = this;
-        return this._onReturn({
+        return this.onReturn({
             ruleName: this.ruleStackCurr.ruleName,
             result: r,
             start:start,
@@ -634,21 +634,22 @@ Parser.prototype = {
             if(this.listener && this.listener.ruleOut)
                 this.listener.ruleOut.call(this, name);
             var p = this.ruleStackCurr.parent;
-            if(p){
-                var pc = p.child, tc = this.ruleStackCurr.child;
-                if(ret){
-                    if(Array.isArray(ret)){
-                        for(var i=0,l=ret.length; i<l;i++)
-                            pc.push(ret[i]);
-                    }else
-                        pc.push(this._onAst(ret));
-                }else if(ret === undefined &&
-                    (this.grammar.AST === undefined || this.astNames[name])){
-                        var ast = {type:name, child: tc};
-                        pc.push(this._onAst(ast));
+            if(!p) return;
+            
+            var pc = p.child, tc = this.ruleStackCurr.child;
+            if(ret != null){
+                if(Array.isArray(ret)){
+                    for(var i=0,l=ret.length; i<l;i++)
+                        pc.push(ret[i]);
+                }else
+                    pc.push(this.onAST(this.ruleStackCurr, ret));
+            }else if(ret === undefined){
+                if (this.grammar.AST === undefined || this.astNames[name]){
+                    var ast = {type:name, child: tc};
+                    pc.push(this.onAST(this.ruleStackCurr, ast));
                 }else{
                     for(var i=0,l=tc.length; i<l; i++)
-                        pc.push(tc[i]);
+                    pc.push(tc[i]);
                 }
             }
         }
@@ -676,23 +677,29 @@ Parser.prototype = {
     verbose:function(){
         this._verbose = true;
     },
-    _onAst:function(astOrRet){
+    /**
+    override this method, if you want to implement AST build process globally
+    @param stack an object contains current rule stack properties, which might be useful
+        stack = {
+            startToken:
+            ruleName: ,
+            parent: ,
+            stopToken: 
+        }
+    @param astOrRet could either be the returned no-null value returned by user defined rule,
+    or an automatically generated AST object whose normal structure is
+    {
+        type: <rule name>,
+        child: [
+            <subrule AST>
+        ]
+    }
+    */
+    onAST:function(stack, astOrRet){
         return astOrRet;
     },
-    _onReturn:function(ret){
+    onReturn:function(ret){
         return ret;
     },
-    /**
-    @param handler should be an object which contains two function members
-    {
-        ruleIn:function(ruleName, parser){ }
-        ruleOut:function(ruleName, parser){ }
-        ast:function(ast, stack){}
-    }
-    During parsing, the 'this' context for these listener method will be parser instance
-    */
-    setListener:function(handler){
-        this.listener = handler;
-    }
 };
 
