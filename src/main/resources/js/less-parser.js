@@ -5,7 +5,7 @@ var grammar = {
     each name must matches defined rule name, the list will contains name of every parser rule defined by user,
     it means that parser will build all types of AST by name of parser rules by default
     */
-    AST:['cssRule', 'cssSelector','selector'],
+    AST:['cssRule', 'cssSelector','selectors','selector'],
     
     root:function(){
         var c = this.rule('content', 'EOF');
@@ -93,13 +93,13 @@ var grammar = {
     },
     
     selectors: function(){
-        var ret = [this.rule('selector')];
+        this.rule('selector');
         
         this.bnfLoop(0, function(){
                 return this.inTokens(',');
         },function(){
             this.advance();
-            ret.push(this.rule('selector'));
+            this.rule('selector');
         });
         //return ret;
     },
@@ -107,7 +107,7 @@ var grammar = {
         this.bnfLoop(1, function(){
                 return ! this.inTokens('{', '}', ',', ';');
         });
-        //return this.ruleText();
+        
     },
     
     /** type: rule/variable */
@@ -296,7 +296,17 @@ exports.create = function(str){
     }
     parser.onAST = function(stack, ast){
         ast.start = stack.startToken.pos[0];
-        ast.stop = stack.stopToken.pos[1]
+        ast.stop = stack.stopToken.pos[1];
+        switch(stack.ruleName){
+        case 'selector':
+            ast.name = this.ruleText();
+            break;
+        case 'cssSelector':
+            var sels = ast.child[0];
+            console.log(sels.child[sels.child.length - 1]);
+            sels.child[sels.child.length - 1].stop = ast.stop;
+            break;
+        }
         return ast;
     }
     /**
