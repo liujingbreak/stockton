@@ -5,7 +5,7 @@ var grammar = {
     each name must matches defined rule name, the list will contains name of every parser rule defined by user,
     it means that parser will build all types of AST by name of parser rules by default
     */
-    AST:['cssRule', 'cssSelector','selectors','selector'],
+    AST:['cssRule','cssSelector', 'selector'],
     
     root:function(){
         var c = this.rule('content', 'EOF');
@@ -36,20 +36,25 @@ var grammar = {
     cssSelector:function (){
         var ret = [];
         var lastToken = this.la().prev;
-        while(lastToken != null && lastToken.channel === 1){
-            if(lastToken != null && lastToken.typeName() == 'doc'){
-                var doc = lastToken.text();
+        while(lastToken != null && lastToken.channel !== 0){
+            if(lastToken.channel === 2){
+                var doc = {
+                    type: 'doc',
+                    name: lastToken.text(),
+                    start: lastToken.pos[0],
+                    stop: lastToken.pos[1]
+                }
                 break;
             }else
                 lastToken = lastToken.prev;
         }
-        this.rule('selectors');
-        //this.log('sels = '+ sels);
+        var selectors = this.rule('selectors').result;
+        
         if(doc)
             this.log('doc='+doc)
         if(this.inTokens('{')){
             this.advance();
-            var content = this.rule('content', '}');
+            var content = this.rule('content', '}').result;
             this.match('}');
             //return ret;
         }
@@ -61,6 +66,13 @@ var grammar = {
             this.unexpect(this.la());
             //return null;
         }
+        var lastSelector = selectors[selectors.length -1];
+        lastSelector.stop = this.lb().pos[1];
+        if(content && content.length > 0)
+            lastSelector.child = content;
+        if(doc)
+            selectors.splice(0, 0, doc);
+        return selectors;
     },
     
     
@@ -149,6 +161,106 @@ var grammar = {
     }
 };
 
+function varname(lex){
+    lex.advance();
+    lex.bnfLoop(0, function(){
+            return isID(lex.la());
+    });
+    lex.emitToken('varname');
+}
+
+function ID(lex){
+    lex.advance();
+    lex.bnfLoop(0, function(){
+            return isID(lex.la());
+    });
+    lex.emitToken('ID');
+}
+
+function className(lex){
+    //console.log('classname %d', lex.offset);
+    lex.advance(2);
+    lex.bnfLoop(0, function(){
+        return isID(lex.la())
+    });
+    //console.log('classname end %d', lex.offset);
+    lex.emitToken('className');
+}
+
+function parentheses(lex){
+    lex.advance();
+    lex.bnfLoop(0, function(){ return !this.predChar(')'); },
+        function(){
+            if(lex.predChar('('))
+                parentheses(lex);
+            else
+                var t = lex.advance();
+            //this.log(t.text());
+        });
+    lex.match(')');
+    lex.emitToken('()');
+}
+function stringLit(lex){
+    var start = lex.la();
+    lex.advance();
+    lex.bnfLoop(0, function(){
+            return lex.la() != start;
+    }, function(){
+        var c = this.la();
+        if(c == '\\')
+            this.advance();
+        this.advance();
+    });
+    lex.advance();
+    lex.emitToken('stringLit');
+}
+
+function comment(lex){
+    var channel = 1;
+    lex.advance(2);
+    var content = '', type = 'comment';
+    if(lex.la() == '*' && lex.la(2) != '/'){
+        type = 'doc';
+        channel = 2;
+        lex.advance();
+    }
+    
+    lex.bnfLoop(0, function(){
+            return !this.predChar('*', '/');
+    }, function(){
+        content += lex.advance();
+    });
+    lex.advance(2);
+    var t = lex.emitToken(type, channel);
+    t.text(content);
+}
+
+function lineComment(lex){
+    lex.advance(2);
+    var content = '';
+    lex.bnfLoop(0, function(){
+            return this.la() != '\n';
+    }, function(){
+        content += lex.advance();
+    });
+    lex.advance();
+    var t = lex.emitToken('comment', 1);
+    t.text(content);
+}
+
+function isLetter(c){
+    return  (c >= 'a' && c<= 'z') || ( c >= 'A' && c <= 'Z');
+}
+
+function isNum(c){
+    return  (c >= '0' && c<= '9');
+}
+
+function isID(c){
+    return isLetter(c) || isNum(c) || c == '-' || c == '_';
+}
+    
+    
 exports.create = function(str){
     
     var parser = new LL.Parser(str, function(lex){
@@ -198,113 +310,21 @@ exports.create = function(str){
         }
     }, grammar);
     
-    function varname(lex){
-        lex.advance();
-        lex.bnfLoop(0, function(){
-                return isID(lex.la());
-        });
-        lex.emitToken('varname');
-    }
     
-    function ID(lex){
-        lex.advance();
-        lex.bnfLoop(0, function(){
-                return isID(lex.la());
-        });
-        lex.emitToken('ID');
-    }
-    
-    function className(lex){
-        //console.log('classname %d', lex.offset);
-        lex.advance(2);
-        lex.bnfLoop(0, function(){
-            return isID(lex.la())
-        });
-        //console.log('classname end %d', lex.offset);
-        lex.emitToken('className');
-    }
-    
-    function parentheses(lex){
-        lex.advance();
-        lex.bnfLoop(0, function(){ return !this.predChar(')'); },
-            function(){
-                if(lex.predChar('('))
-                    parentheses(lex);
-                else
-                    var t = lex.advance();
-                //this.log(t.text());
-            });
-        lex.match(')');
-        lex.emitToken('()');
-    }
-    function stringLit(lex){
-        var start = lex.la();
-        lex.advance();
-        lex.bnfLoop(0, function(){
-                return lex.la() != start;
-        }, function(){
-            var c = this.la();
-            if(c == '\\')
-                this.advance();
-            this.advance();
-        });
-        lex.advance();
-        lex.emitToken('stringLit');
-    }
-    
-    function comment(lex){
-        lex.advance(2);
-        var content = '', type = 'comment';
-        if(lex.la() == '*' && lex.la(2) != '/'){
-            type = 'doc';
-            lex.advance();
-        }
-        
-        lex.bnfLoop(0, function(){
-                return !this.predChar('*', '/');
-        }, function(){
-            content += lex.advance();
-        });
-        lex.advance(2);
-        var t = lex.emitToken(type, 1);
-        t.text(content);
-    }
-    
-    function lineComment(lex){
-        lex.advance(2);
-        var content = '';
-        lex.bnfLoop(0, function(){
-                return this.la() != '\n';
-        }, function(){
-            content += lex.advance();
-        });
-        lex.advance();
-        var t = lex.emitToken('comment', 1);
-        t.text(content);
-    }
-    
-    function isLetter(c){
-        return  (c >= 'a' && c<= 'z') || ( c >= 'A' && c <= 'Z');
-    }
-    
-    function isNum(c){
-        return  (c >= '0' && c<= '9');
-    }
-    
-    function isID(c){
-        return isLetter(c) || isNum(c) || c == '-' || c == '_';
-    }
     parser.onAST = function(stack, ast){
-        ast.start = stack.startToken.pos[0];
-        ast.stop = stack.stopToken.pos[1];
+        if(!Array.isArray(ast)){
+            ast.start = stack.startToken.pos[0];
+            ast.stop = stack.stopToken.pos[1];
+        }
         switch(stack.ruleName){
         case 'selector':
             ast.name = this.ruleText();
+            delete ast.child;
             break;
         case 'cssSelector':
-            var sels = ast.child[0];
-            console.log(sels.child[sels.child.length - 1]);
-            sels.child[sels.child.length - 1].stop = ast.stop;
+            //var sels = ast.child[0];
+            //console.log(sels.child[sels.child.length - 1]);
+            //sels.child[sels.child.length - 1].stop = ast.stop;
             break;
         }
         return ast;

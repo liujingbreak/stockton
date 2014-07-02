@@ -638,11 +638,12 @@ Parser.prototype = {
             
             var pc = p.child, tc = this.ruleStackCurr.child;
             if(ret != null){
+                ret = this.onAST(this.ruleStackCurr, ret);
                 if(Array.isArray(ret)){
                     for(var i=0,l=ret.length; i<l;i++)
                         pc.push(ret[i]);
                 }else
-                    pc.push(this.onAST(this.ruleStackCurr, ret));
+                    pc.push(ret);
             }else if(ret === undefined){
                 if (this.grammar.AST === undefined || this.astNames[name]){
                     var ast = {type:name, child: tc};

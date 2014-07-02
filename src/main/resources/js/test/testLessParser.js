@@ -1,7 +1,7 @@
 var LL = require('../baseLLParser.js');
 var fs = require('fs');
 
-var str = fs.readFileSync('./test2.less', {encoding: 'utf-8'});
+var str = fs.readFileSync('./documents.less', {encoding: 'utf-8'});
 
 var lessParserLib = require('../less-parser.js');
 var parser = lessParserLib.create(str);

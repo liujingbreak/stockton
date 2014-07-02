@@ -11,6 +11,7 @@ try{
 	sp = Packages.stockton.sidekickParser
 	;
 	var JSON = require('_json2.js');
+	var ll = require('less-parser.js');
 	var workdir = null,
 		jeditPlugin, home;
 	
@@ -65,9 +66,8 @@ try{
 	}
 	
 	function parseLess(text){
-	    var ll = require('less-parser.js');
 	    var parser = ll.create(text);
-	    return parser.parse();
+	    return parser.parse().result;
 	}
 	
 	log("Greeting from Javascript ...");
@@ -86,6 +86,7 @@ try{
 	]
 	*/
 	function buildSidekickTree(uiNode, result){
+	    try{
 		result.forEach(function(el){
 				if(el === null || el === undefined || typeof(el) == 'string')
 					return;
@@ -106,6 +107,10 @@ try{
                     }
 				
 		});
+		}catch(e){
+		    log('failed to process AST:\n'+ JSON.stringify(result));
+		    throw e;
+		}
 	}
 	
 	var actions = {
