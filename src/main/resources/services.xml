@@ -2,7 +2,7 @@
 <!DOCTYPE SERVICES SYSTEM "services.dtd">
 
 <SERVICES>
-	<SERVICE CLASS="sidekick.SideKickParser" NAME="st-pegjs">
-		new stockton.SidekickJSAdapter("st-pegjs");
+	<SERVICE CLASS="sidekick.SideKickParser" NAME="stockton">
+		new stockton.SidekickJSAdapter("stockton");
 	</SERVICE>
 </SERVICES>
