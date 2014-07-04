@@ -46,6 +46,7 @@ public class JavaScriptInvoker{
 	}
 	
 	public File loadJs(String jsFile){
+	        log.info("loadJS "+ jsFile + " from "+ tempFolder.getPath());
 			if(! tempFolder.exists())
 					tempFolder.mkdirs();
 			File f = new File(tempFolder, jsFile);
@@ -96,6 +97,7 @@ public class JavaScriptInvoker{
 							"/js/initscope.js", 1, null);
 			}
 			ScriptableObject.putProperty(sp, "__fileName", fileName);
+			ScriptableObject.putProperty(sp, "__dirname", tempFolder.getPath());
 			initScope.exec(cx, sp);
 			Object wrappedOut = cx.javaToJS(this, sp);
 			ScriptableObject.putProperty(sp, "__invoker", wrappedOut);
@@ -127,8 +129,12 @@ public class JavaScriptInvoker{
 			
 				Object r = cx.evaluateReader(scope, new FileReader(f), jsname, 1, null);
 				log.info("return js eval : "+r.getClass().getName());
-			
-				mainfun = (Function)r;
+				if(r instanceof Function)
+				    mainfun = (Function)r;
+				else{
+				    log.warning("expect a returned entry function, but it is "+ r);
+				    return null;
+				}
 			}
 			Object r = mainfun.call(cx, scope, null, param);
 			if(retType != null && retType != Void.class)

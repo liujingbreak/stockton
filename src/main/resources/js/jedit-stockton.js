@@ -12,8 +12,7 @@ try{
 	;
 	var JSON = require('_json2.js');
 	var ll = require('less-parser.js');
-	var workdir = null,
-		jeditPlugin, home;
+	var jeditPlugin, home;
 	
 	/* function loadFile(filepath){
 		var s = "";
@@ -29,9 +28,8 @@ try{
 	} */
 	
 	(function setup(){
-		var workdir = new java.io.File(lan.System.getProperty("user.home"), ".stockton");
 		var fh = new logging.FileHandler(
-			new java.io.File(workdir, "jedit-stockton.log"));
+			new java.io.File(__dirname, "jedit-stockton.log"));
 		fh.setFormatter(new logging.SimpleFormatter());
 		jsLog = java.util.logging.Logger.getLogger("js");
 		jsLog.getHandlers().forEach(function(h){
@@ -188,7 +186,7 @@ try{
 	return main;
 }catch(e){
 	java.lang.System.out.println(e);
-	//logger.severe(e.toString());
+	logger.severe(e.toString());
 	return "ERROR in Javascript file";
 }
 })();

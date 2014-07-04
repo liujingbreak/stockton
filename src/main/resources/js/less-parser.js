@@ -50,8 +50,6 @@ var grammar = {
         }
         var selectors = this.rule('selectors').result;
         
-        if(doc)
-            this.log('doc='+doc)
         if(this.inTokens('{')){
             this.advance();
             var content = this.rule('content', '}').result;
@@ -66,13 +64,15 @@ var grammar = {
             this.unexpect(this.la());
             //return null;
         }
-        var lastSelector = selectors[selectors.length -1];
-        lastSelector.stop = this.lb().pos[1];
-        if(content && content.length > 0)
-            lastSelector.child = content;
-        if(doc)
-            selectors.splice(0, 0, doc);
-        return selectors;
+        if(!this.isPredicate()){
+            var lastSelector = selectors[selectors.length -1];
+            lastSelector.stop = this.lb().pos[1];
+            if(content && content.length > 0)
+                lastSelector.child = content;
+            if(doc)
+                selectors.splice(0, 0, doc);
+            return selectors;
+        }
     },
     
     
@@ -126,8 +126,6 @@ var grammar = {
     cssRule:function (){
         var name = this.match('varname');
         if(this.predToken('{')){
-            if(!this.isPredicate())
-                this.log('[cssRule] '+ this.ruleText());
             this.advance();
             var content = this.rule('content', '}');
             this.match('}');
