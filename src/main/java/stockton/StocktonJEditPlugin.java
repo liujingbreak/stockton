@@ -16,6 +16,7 @@ public class StocktonJEditPlugin extends EditPlugin implements EBComponent{
 	
 	public void start()
 	{
+	    mainJs().tempFolder = getPluginHome();
 		mainJs().calljs(Void.class, "start", this);
 	}
 	

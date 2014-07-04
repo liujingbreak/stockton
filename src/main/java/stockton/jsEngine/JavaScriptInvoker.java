@@ -13,7 +13,7 @@ public class JavaScriptInvoker{
 	private Scriptable scope;
 	private Function mainfun;
 	private String jsname;
-	private File tempFolder = new File(System.getProperty("user.home"), ".stockton");
+	public File tempFolder = new File(System.getProperty("user.home"), ".stockton");
 	private Script initScope;
 	private Map<String, Scriptable> jsExports = new HashMap();
 	
