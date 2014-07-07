@@ -279,11 +279,11 @@ exports.create = function(str){
             className(lex);
         }else if(c == '"' || c == "'"){
             stringLit(lex);
-        }else if(c == ' ' || c == '\n' || c == '\t' || c == '\r'){
+        }else if(c == ' ' || c === '\f' || c == '\n' || c == '\t' || c == '\r'){
             lex.advance();
             lex.bnfLoop(0, function(){
                     var c = lex.la();
-                    return c == ' ' || c == '\n' || c == '\t' || c == '\r';
+                    return c == ' ' || c === '\f' || c == '\n' || c == '\t' || c == '\r';
             });
             lex.emitToken('WS', 1);
             return;

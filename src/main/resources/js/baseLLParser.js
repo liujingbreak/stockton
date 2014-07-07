@@ -113,6 +113,10 @@ Lexer.prototype = {
         }
     },
     
+    range:function(chr, charFrom, charTo){
+        return chr >= charFrom && chr <= charTo;
+    },
+    
     bnfLoop:function(leastTimes, predFunc, subRule){
         if(subRule === undefined)
             subRule = this.advance;
@@ -134,7 +138,7 @@ Lexer.prototype = {
             leastTimes--;
         }
         if(leastTimes > 0)
-            this.unexpect(' end of BNF');
+            this.unexpect(' end of BNF ( not reach leastTimes:'+ leastTimes +')');
     },
     next:function(){
         var c = this.la(1);
@@ -184,6 +188,15 @@ Lexer.prototype = {
         //console.log('la() this=%s, offset=%d, pos=%d', this.classname,this.offset, pos);
         return this.input[pos];
     },
+    
+    /** look back */
+    lb:function(index){
+        if(index === undefined)
+            index = 1;
+        var pos = this.offset - index;
+        return this.input[pos];
+    },
+    
     predChar:function(c, c2, c3){
         for(var i = 1, l = arguments.length; i<= l; i++){
             if(this.la(i) != arguments[i - 1 ])
