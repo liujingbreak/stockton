@@ -1,5 +1,10 @@
 var LL = require('./baseLLParser.js');
 
+var keywordMap = {
+	'options': 0,
+	'protected': 1,
+	'returns': 2
+}
 function scanToken(lex){
     var other = false;
     var c = lex.la();
@@ -35,7 +40,7 @@ function scanToken(lex){
     case '{':
     case '}':
     case '(':
-    case ')': case ':': case ';':
+    case ')': case ':': case ';': case '!':
         lex.advance();
         lex.emitToken(c);
         break;
@@ -160,7 +165,10 @@ function id(lex){
     }, function(){
         text += this.advance();
     });
-    lex.emitToken('id');
+    if(text in keywordMap)
+    		lex.emitToken(text);
+    	else
+    		lex.emitToken('id');
 }
 
 var numberSuffix = {'f':true, 'F':true, 'd':true, 'D':true};
@@ -230,18 +238,21 @@ var grammar = {
     },
     
     rule:function(){
-    		if(this.la().text() === 'protected')
+    		if(this.inTokens('protected', 'fragment'))
     			this.advance();
         var name = this.match('id').text();
-        this.log('NAME:'+ name);
+        if(this.inTokens('!'))
+        		this.advance();
+        //this.log('NAME:'+ name);
         this.bnfLoop(0, function(){
-                return this.inTokens("[");
-        }, function(){
-                this.advance();
-                this.bnfLoop(0, function(){ return !this.predToken(']'); });
-                this.match(']');
-            }
-        );
+				return this.inTokens("[", "returns");
+		}, function(){
+				if(this.inTokens('returns'))
+					this.advance();
+				this.match('[');
+				this.bnfLoop(0, function(){ return !this.predToken(']'); });
+				this.match(']');
+			});
         if(this.predToken('options'))
         		this.rule('options');
         if(this.predToken('{')){
@@ -259,37 +270,34 @@ var grammar = {
         			this.advance();
         });
         this.match(';');
-        return { type: 'rule', name: name };
+        var chr0 = name.charAt(0);
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name };
     },
 
     isRule:function(){
-    		this.log('isrule');
-        if(this.predToken('id')){
-        		if(this.la().text() === 'protected'){
-        			this.log('pro');
-        			this.advance();
-        		}
-        		var name = this.match('id');
-        		this.log('name '+ name.text());
-        }else
-            return false;
-         this.log('here');
-        this.bnfLoop(0, function(){
-                return this.inTokens("[");
-        }, function(){
-                this.advance();
-                this.bnfLoop(0, function(){ return !this.predToken(']'); });
-                this.match(']');
-            }
-        );
-        if(this.predToken('options'))
-        		this.rule('options');
-        if(this.predToken('{')){
-        		this.rule('block');
-        }
-        if(this.predToken('options'))
-        		this.rule('options');
-        this.match(':');
+		if(this.inTokens('protected', 'fragment')){
+			return true;
+		}
+		var name = this.match('id');
+		if(this.inTokens('!'))
+        		this.advance();
+		this.bnfLoop(0, function(){
+				return this.inTokens("[", "returns");
+		}, function(){
+				if(this.inTokens('returns'))
+					this.advance();
+				this.match('[');
+				this.bnfLoop(0, function(){ return !this.predToken(']'); });
+				this.match(']');
+			});
+		if(this.predToken('options'))
+				this.rule('options');
+		if(this.predToken('{')){
+				this.rule('block');
+		}
+		if(this.predToken('options'))
+				this.rule('options');
+		this.match(':');
     },
     action:function(){
         this.match('@');

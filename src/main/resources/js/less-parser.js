@@ -122,7 +122,7 @@ var grammar = {
         
     },
     
-    /** type: rule/variable */
+    /** type: rule/variableDef */
     cssRule:function (){
         var name = this.match('varname');
         if(this.predToken('{')){

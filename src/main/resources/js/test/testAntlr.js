@@ -4,7 +4,7 @@ var LL = require('../antlr-parser.js')
     
 var str = fs.readFileSync('./groovy.g', {encoding: 'utf-8'});
 var parser = LL.create(str);
-//parser.verbose();
+parser.verbose();
 var ast = parser.parse();
 debugger;
-//console.log(JSON.stringify(ast.result, null, '  '));
+console.log(JSON.stringify(ast.result, null, '  '));

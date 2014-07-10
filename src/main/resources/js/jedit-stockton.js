@@ -11,7 +11,8 @@ try{
 	sp = Packages.stockton.sidekickParser
 	;
 	var JSON = require('_json2.js');
-	var ll = require('less-parser.js');
+	var ll = require('less-parser.js'),
+		antlrParser = require('antlr-parser.js');
 	var jeditPlugin, home;
 	
 	/* function loadFile(filepath){
@@ -63,9 +64,16 @@ try{
 	        return parser.parse(text);
 	}
 	
+	var LESS_PARSER_UI_STYLE = {'rule': 1, 'doc': 0, 'selector': 2, 'variableDef': 3};
 	function parseLess(text){
 	    var parser = ll.create(text);
 	    return parser.parse().result;
+	}
+	
+	var ANTLR_PARSER_UI_STYLE = {'parserRule': 0, 'lexRule': 1};
+	function parseAntlr(text){
+		var p = antlrParser.create(text);
+		return p.parse().result;
 	}
 	
 	log("Greeting from Javascript ...");
@@ -83,7 +91,7 @@ try{
 	    }
 	]
 	*/
-	function buildSidekickTree(uiNode, result){
+	function buildSidekickTree(uiNode, result, type2styleMap){
 	    try{
 		result.forEach(function(el){
 				if(el === null || el === undefined || typeof(el) == 'string')
@@ -91,7 +99,8 @@ try{
 				try{
                         uic = new javax.swing.tree.DefaultMutableTreeNode();
                         var showName = el.fullName? el.fullName: (el.name? el.name: '<f>');
-                        var sidekick = new sp.SidekickNode(showName, "", showName.charAt(0) =='.'?3:0);
+                        var style = type2styleMap? type2styleMap[el.type] : (showName.charAt(0) =='.'?3:0) ;
+                        var sidekick = new sp.SidekickNode(showName, "", style != null? style : 0);
                         sidekick.setStartOffset(el.start);
                         sidekick.setEndOffset(el.stop);
                         uic.setUserObject(sidekick);
@@ -101,7 +110,7 @@ try{
                         throw e;
                     }
                     if(Array.isArray(el.child)){
-                        buildSidekickTree(uic, el.child);
+                        buildSidekickTree(uic, el.child, type2styleMap);
                     }
 				
 		});
@@ -128,10 +137,13 @@ try{
 				log("parsing duration "+ (new Date().getTime() - time1) );
 			}else if(fname.length > 4 && fname.substring(fname.length -4).toLowerCase() == '.css'){
 			    var data = new sd.SideKickParsedData(fname);
-			    buildSidekickTree(data.root, parseLess(text));
+			    buildSidekickTree(data.root, parseLess(text), LESS_PARSER_UI_STYLE);
 			}else if(fname.length > 5 && fname.substring(fname.length -5).toLowerCase() == '.less'){
 			    var data = new sd.SideKickParsedData(fname);
-			    buildSidekickTree(data.root, parseLess(text));
+			    buildSidekickTree(data.root, parseLess(text), LESS_PARSER_UI_STYLE);
+			}else if(fname.length > 2 && fname.substring(fname.length -2).toLowerCase() == '.g'){
+			    var data = new sd.SideKickParsedData(fname);
+			    buildSidekickTree(data.root, parseAntlr(text), ANTLR_PARSER_UI_STYLE);
 			}else{
 				var data = new sd.SideKickParsedData('test');
 			}
