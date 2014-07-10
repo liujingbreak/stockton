@@ -8,11 +8,11 @@ function scanToken(lex){
     case '\t':
     case '\r':
     case '\f':
-    case '\\':
+    case '\n':
         lex.advance();
             lex.bnfLoop(0, function(){
                     var c = lex.la();
-                    return c == ' ' || c == '\t' || c == '\r' || c === '\f';
+                    return c == ' ' || c == '\t' || c == '\r' || c === '\f' || c === '\n';
             });
         lex.emitToken('WS', 1);
         break;
@@ -21,8 +21,6 @@ function scanToken(lex){
             comment(lex);
         else if(this.la(2) == '/')
             lineComment(lex);
-        else if(isReguarExpress(lex))
-            regex(lex);
         else{
             lex.advance();
             lex.emitToken(c);
@@ -37,13 +35,14 @@ function scanToken(lex){
     case '{':
     case '}':
     case '(':
-    case ')':
+    case ')': case ':': case ';':
         lex.advance();
         lex.emitToken(c);
         break;
     case '-':
     case '.':
         number(lex);
+        break;
     default:
         other = true;
     }
@@ -203,15 +202,127 @@ function hex(lex){
 }
 
 var grammar = {
+	AST:[ 'rule'],
+	
     root: function(){
-        this.bnfLoop(0, function(){return true;});
+        this.rule('blockContent', true);
         this.match('EOF');
+    },
+    blockContent: function(hasRule){
+    		var s = [];
+        this.bnfLoop(0, function(){ return !this.predToken('}')},
+        function(){
+            if(this.predToken('{')){
+                this.rule('block');
+            }else if(hasRule && this.predRule('isRule')){
+                s.push(this.rule('rule').result);
+            }else{
+                this.rule('other');
+            }
+        });
+        return s;
+    },
+    block: function(){
+        this.advance();
+        this.rule('blockContent', false);
+        this.match('}');
+        
+    },
+    
+    rule:function(){
+    		if(this.la().text() === 'protected')
+    			this.advance();
+        var name = this.match('id').text();
+        this.log('NAME:'+ name);
+        this.bnfLoop(0, function(){
+                return this.inTokens("[");
+        }, function(){
+                this.advance();
+                this.bnfLoop(0, function(){ return !this.predToken(']'); });
+                this.match(']');
+            }
+        );
+        if(this.predToken('options'))
+        		this.rule('options');
+        if(this.predToken('{')){
+        		this.rule('block');
+        }
+        if(this.predToken('options'))
+        		this.rule('options');
+        this.match(':');
+        this.bnfLoop(0, function(){
+                return !this.predToken(';');
+        }, function(){
+        		if(this.predToken('{'))
+        			this.rule('block');
+        		else
+        			this.advance();
+        });
+        this.match(';');
+        return { type: 'rule', name: name };
+    },
+
+    isRule:function(){
+    		this.log('isrule');
+        if(this.predToken('id')){
+        		if(this.la().text() === 'protected'){
+        			this.log('pro');
+        			this.advance();
+        		}
+        		var name = this.match('id');
+        		this.log('name '+ name.text());
+        }else
+            return false;
+         this.log('here');
+        this.bnfLoop(0, function(){
+                return this.inTokens("[");
+        }, function(){
+                this.advance();
+                this.bnfLoop(0, function(){ return !this.predToken(']'); });
+                this.match(']');
+            }
+        );
+        if(this.predToken('options'))
+        		this.rule('options');
+        if(this.predToken('{')){
+        		this.rule('block');
+        }
+        if(this.predToken('options'))
+        		this.rule('options');
+        this.match(':');
+    },
+    action:function(){
+        this.match('@');
+        this.match('id');
+        this.rule('block');
+        return null;
+    },
+    
+    options:function(){
+    		this.match('options');
+    		this.rule('block');
+    },
+    
+    other:function(){
+    		this.advance();
+    		return null;
     }
 };
 exports.create = function(text){
     var parser = new LL.Parser(text, scanToken, grammar);
+    
     parser.parse = function(){
     		return parser.rule("root");
+    }
+    
+    parser.onAST = function(stack, ast){
+        if(!Array.isArray(ast)){
+            ast.start = stack.startToken.pos[0];
+            ast.stop = stack.stopToken.pos[1];
+            ast.line = stack.startToken.pos[2];
+        }
+        
+        return ast;
     }
     return parser;
 };

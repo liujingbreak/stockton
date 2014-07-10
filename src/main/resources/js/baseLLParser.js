@@ -134,7 +134,8 @@ Lexer.prototype = {
             }
             if(!pred)
                 break;
-            subRule.call(this);
+            if(subRule)
+                subRule.call(this);
             leastTimes--;
         }
         if(leastTimes > 0)
@@ -443,7 +444,7 @@ Parser.prototype = {
         return this._pred(predFunc, arr);
     },
     
-    _pred:function(predFunc, paramArray){
+    _pred:function(predFunc, paramArray, condition){
         this.nestedPredCnt++;
         var next = this._next;
         try{
@@ -490,6 +491,11 @@ Parser.prototype = {
         return true;
     },
     
+    /**
+    @param predFunc must explicitly return a true or /false
+    @param subRuleFunc (optional) once predFunc returns true, this function will be execute, 
+    the returned value will be regarded as loop's returned value, can be null
+    */
     bnfLoop:function(leastTimes, predFunc, subRuleFunc){
         //var elements = [];
         if(subRuleFunc === undefined)
@@ -502,9 +508,10 @@ Parser.prototype = {
                 var next = this._next;
                 var pred = this._pred(predFunc);
                 this._next = next;
-                if(pred === undefined){
-                    throw new Error('predicate function must return boolean value');
-                }
+                //if(pred === undefined){
+                //		this.log('predicate function must return boolean value');
+                //    throw new Error('predicate function must return boolean value');
+                //}
             }catch(e){
                 if(e.name == 'UnexpectToken')
                     pred = false;
@@ -526,15 +533,19 @@ Parser.prototype = {
         return i;
     },
     
+    
     match:function(typeName1){
+    		var r;
         for(var i=0,l=arguments.length; i<l; i++){
             var next = this._next;
             var tk = this.advance();
+            r = tk;
             if(tk.type != this.tokenType(arguments[i])){
                 this._next = next;
                 throw new UnexpectToken('expect "'+ arguments[i] +'", unexpect token: '+ tk);
             }
         }
+        return r;
     },
     
     unexpect:function(token){
@@ -672,8 +683,8 @@ Parser.prototype = {
     },
      
     log:function(arg){
-        if(this.isPredicate())
-            return;
+        //if(this.isPredicate())
+        //    return;
         var debugMsg = '';
         for(var i= -1 ,l=this.stackLevel; i<l; i++)
             debugMsg += ' |';
