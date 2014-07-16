@@ -206,6 +206,14 @@ Lexer.prototype = {
         return true;
     },
     
+    predString:function(str){
+        for(var i = 1, l = str.length; i<= l; i++){
+            if(this.la(i) != str.charAt(i - 1 ))
+                return false;
+        }
+        return true;
+    },
+    
     unknown:function(c){
         if(this._unknown == null)
             this._unknown = c;
