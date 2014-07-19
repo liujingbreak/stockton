@@ -56,7 +56,7 @@ function Lexer(str, callback){
     this.lastToken = null;
     this.tokenIndex = 0;
     this.callback = callback;
-    this.types = {'EOF': EOF};
+    this.types = {'EOF': EOF, 'SOF': -2};
     this.typeIdx = 0;
     this.typeNames = [];
     
@@ -238,6 +238,8 @@ Lexer.prototype = {
         }
         var token = this._emitToken.apply(this, arguments);
         //console.log('#'+ token.toString());
+        //if(this._verbose)
+        //		console.log(' emit token: '+ stype);
         return token;
     },
     
@@ -355,6 +357,15 @@ function Parser(str, lexerCallback, parserGrammar, channel){
         next = next.next;
     }
     this._next = next;
+    
+    this.SOF = new Token({
+            type:this.lexer._tokenType('SOF'), 
+            pos:[0, 0, 0, 0, 0, 0],
+            idx: -1,
+            channel: 0,
+            prev: this.lexer.lastToken,
+            next:null
+     }, this);
 }
 exports.Parser = Parser;
 Parser.prototype = {
@@ -411,7 +422,7 @@ Parser.prototype = {
         for(var i = index; i; i--){
             var prev = prev.prev;
             if(!prev)
-                return prev;
+                return this.SOF;
             if(prev.channel !== this.channel)
                 i++;
         }
@@ -709,6 +720,8 @@ Parser.prototype = {
     },
     verbose:function(){
         this._verbose = true;
+        this.lexer._verbose = true;
+        console.log('verbose');
     },
     /**
     override this method, if you want to implement AST build process globally

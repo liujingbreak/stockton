@@ -8,13 +8,7 @@ var SKIP = 1;
 function scanToken(lex){
 	var other = false;
 	var c = lex.la();
-	if(lex.tokenIndex == 0 && c.predString('/*')){
-		lex.advance(2);
-		if(c.predChar('*'))
-			lex.advance();
-		lex.emitToken('START', SKIP);
-		return;
-	}
+	
 	switch(c){
 		case ' ':
 		case '\t':
@@ -22,16 +16,21 @@ function scanToken(lex){
 		case '\r':
 		case '\n':
 			lex.advance();
-			lex.emitToken('WS');
+			lex.emitToken('WS', 1);
 			break;
 		case '*':
-			if(lex.lb() === '\n' || lex.lb() === '\r'){
+			if(lex.la(2) === '/'){
+				lex.advance(3);
+				lex.emitToken('END', 1);
+				break;
+			}
+			else if(lex.lb() === '\n' || lex.lb() === '\r'){
 				lex.advance();
 				lex.bnfLoop(0, function(){ return lex.la() === '*';},
 					function(){
 						lex.advance();
 					});
-				lex.emitToken("WS");
+				lex.emitToken("WS", 1);
 			}else{
 				lex.advance();
 				lex.emitToken(c);
@@ -44,9 +43,14 @@ function scanToken(lex){
 				id(lex);
 			break;
 		default:
-			other = true;
+			if(lex.tokenIndex == 0 && lex.predString('/*')){
+			lex.advance(2);
+			if(lex.predChar('*'))
+				lex.advance();
+				lex.emitToken('START', SKIP);
+				return;
+		}
 	}
-	if(!other) return;
 }
 
 function isWord(c){
@@ -74,7 +78,8 @@ var grammar = {
 	root:function(){
 		this.bnfLoop(0, function(){return true;},
 			function(){
-				this.advance();
+				var t = this.advance();
+				//this.log(t.toString());
 			});
 		this.match('EOF');
 	}
@@ -86,4 +91,5 @@ exports.create = function(text){
     parser.parse = function(){
     		return parser.rule("root");
     }
+    return parser;
 };
