@@ -521,8 +521,8 @@ Parser.prototype = {
     */
     bnfLoop:function(leastTimes, predFunc, subRuleFunc){
         //var elements = [];
-        if(arguments.length < 3)
-        		throw new Error('Need 3 arguments to call bnfLoop()');
+        if(typeof(leastTimes) != 'number')
+        		throw new Error('wrong arguments type to call bnfLoop()');
         if(subRuleFunc === undefined)
             subRuleFunc = this.advance;
         if(typeof subRuleFunc == 'string')
