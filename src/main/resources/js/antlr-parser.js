@@ -40,7 +40,7 @@ function scanToken(lex){
     case '{':
     case '}':
     case '(':
-    case ')': case ':': case ';': case '!':
+    case ')': case ':': case ';': case '!': case '?': case '+': case '*':
         lex.advance();
         lex.emitToken(c);
         break;
@@ -51,17 +51,21 @@ function scanToken(lex){
     			break;
     		}
     case '.':
+    		if(lex.la(2) == '.'){
+    			lex.advance(2);
+    			lex.emitToken('..');
+    			return;
+    		}
         number(lex);
-        break;
+        return;
     default:
-        other = true;
+        if(c >= '0' && c<= '9'){
+			number(lex);
+		}else if(c >= 'a' && c<= 'z' || c >= 'A' && c <= 'Z' || c === '_' || c === '$'){
+			id(lex);
+		}
     }
-    if(!other) return;
-    if(c >= '0' && c<= '9'){
-        number(lex);
-    }else if(c >= 'a' && c<= 'z' || c >= 'A' && c <= 'Z' || c === '_' || c === '$'){
-        id(lex);
-    }
+    
 }
 function stringLit(lex){
     var start = lex.la();
@@ -277,6 +281,49 @@ var grammar = {
         this.match(';');
         var chr0 = name.charAt(0);
         return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name };
+    },
+    
+    choice:function(){
+    		this.rule('item');
+    		this.bnfLoop(function(){ return this.predToken("|"); },
+    			function(){
+    				this.advance();
+    				this.rule('item');
+    			});
+    },
+    
+    item:function(){
+    		this.bnfLoop(function(){ return !this.inTokens("|", ";"); },
+    			function(){
+    				if(this.predToken('id', ':')){
+    					this.advance();
+    					this.advance();
+    				}
+    				if(this.predToken('['))
+    					this.rule('singleChar');
+    				else if(this.predToken('stringLit', '..'))
+    					this.rule('range');
+    				else if(this.predToken('~')){
+    					this.rule('not');
+    				}else if(this.predToken('(')){
+    					this.advance();
+    					this.rule('choice');
+    					this.match(')');
+    					if(this.inTokens('?','+','*'))
+    						this.advance();
+    				}
+    			});
+    		
+    },
+    
+    not:function(){
+    		this.match('~');
+    		this.match('stringLit');
+    },
+    range:function(){
+    		this.advance();
+    		this.advance();
+    		this.match('stringLit');
     },
 
     isRule:function(){

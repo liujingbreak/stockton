@@ -465,6 +465,7 @@ Parser.prototype = {
     
     _pred:function(predFunc, paramArray, condition){
         this.nestedPredCnt++;
+        
         var next = this._next;
         try{
             var ret = predFunc.apply(this, paramArray);
@@ -488,8 +489,12 @@ Parser.prototype = {
         var next = this._next;
         for(var i =0, l = typesNum; i<l; i++){
             var ntype = typesCallback.call(this, i);
+            
             if(next.type != EOF && next.channel !== this.channel){
+            		if(!next.next)
+            			this.lexer.moreToken();
                 next = next.next;
+                //console.log(next.toString());
                 i--;//more rounds
                 continue;
             }
@@ -505,7 +510,6 @@ Parser.prototype = {
             if(!next.next)
                 this.lexer.moreToken();
             next = next.next;
-            
         }
         return true;
     },
@@ -517,6 +521,8 @@ Parser.prototype = {
     */
     bnfLoop:function(leastTimes, predFunc, subRuleFunc){
         //var elements = [];
+        if(arguments.length < 3)
+        		throw new Error('Need 3 arguments to call bnfLoop()');
         if(subRuleFunc === undefined)
             subRuleFunc = this.advance;
         if(typeof subRuleFunc == 'string')

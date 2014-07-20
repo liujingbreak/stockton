@@ -40,7 +40,8 @@ function scanToken(lex){
     case '{':
     case '}':
     case '(':
-    case ')': case ':': case ';': case '!':
+    case ')': case ':': case ';': case '!': case '?': case '+': case '*': case '~':
+    case '|':
         lex.advance();
         lex.emitToken(c);
         break;
@@ -51,17 +52,28 @@ function scanToken(lex){
     			break;
     		}
     case '.':
-        number(lex);
-        break;
+    		if(lex.la(2) == '.'){
+    			lex.advance(2);
+    			lex.emitToken('..');
+    			return;
+    		}else{
+    			var c2 = lex.la(2);
+    			if(c2 >= '0' && c2 <= '9' )
+    				number(lex);
+    			else{
+    				lex.advance();
+    				lex.emitToken(c);
+    			}
+        	}
+        return;
     default:
-        other = true;
+        if(c >= '0' && c<= '9'){
+			number(lex);
+		}else if(c >= 'a' && c<= 'z' || c >= 'A' && c <= 'Z' || c === '_' || c === '$'){
+			id(lex);
+		}
     }
-    if(!other) return;
-    if(c >= '0' && c<= '9'){
-        number(lex);
-    }else if(c >= 'a' && c<= 'z' || c >= 'A' && c <= 'Z' || c === '_' || c === '$'){
-        id(lex);
-    }
+    
 }
 function stringLit(lex){
     var start = lex.la();
@@ -193,12 +205,11 @@ function number(lex){
     }else if(d === '-'){
     		lex.advance();
     }
-    if(lex.la() == '.')
-        lex.advance();
-    lex.bnfLoop(0, function(){
-            var c = this.la();
-            return c >= '0' && c<= '9';
-    });
+    if(d == '.')
+		lex.bnfLoop(0, function(){
+				var c = this.la();
+				return c >= '0' && c<= '9';
+		});
     var c = lex.la();
     if(c in numberSuffix)
         lex.advance();
@@ -215,7 +226,7 @@ function hex(lex){
 }
 
 var grammar = {
-	AST:[ 'rule'],
+	//AST:[ 'rule'],
 	
     root: function(){
         this.rule('blockContent', true);
@@ -239,7 +250,7 @@ var grammar = {
         this.advance();
         this.rule('blockContent', false);
         this.match('}');
-        
+        return null;
     },
     
     rule:function(){
@@ -258,25 +269,142 @@ var grammar = {
 				this.bnfLoop(0, function(){ return !this.predToken(']'); });
 				this.match(']');
 			});
-        if(this.predToken('options'))
-        		this.rule('options');
         if(this.predToken('{')){
         		this.rule('block');
         }
         if(this.predToken('options'))
         		this.rule('options');
-        this.match(':');
-        this.bnfLoop(0, function(){
-                return !this.predToken(';');
-        }, function(){
-        		if(this.predToken('{'))
-        			this.rule('block');
-        		else
-        			this.advance();
-        });
+        	else
+        		this.match(':');
+        var choice = this.rule('choice').result;
         this.match(';');
         var chr0 = name.charAt(0);
-        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name };
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name, child: choice};
+    },
+    
+    choice:function(){
+    		var child = [];
+    		child.push(this.rule('item'));
+    		this.bnfLoop(0, function(){ return this.predToken("|"); },
+    			function(){
+    				this.advance();
+    				child.push(this.rule('item').result);
+    			});
+    		return {
+    			type:'choice',
+    			child: child
+    		};
+    },
+    
+    item:function(){
+    		this.bnfLoop(0, function(){ return !this.inTokens("|", ";", ")"); },
+    			function(){
+    				this.rule('element');
+    			});
+    		
+    },
+    
+    element:function(){
+    		if(this.predToken('id', ':')){
+    			var label = this.advance();
+    			this.advance();
+    		}
+    		if(this.predToken('id')){
+    			this.rule('subRule');
+    		}else if(this.predToken('[')){
+    			this.unexpect(this.la());
+    			this.rule('regex');
+    		}else if(this.predToken('stringLit')){
+    			if(this.predToken('stringLit', '..'))
+    				this.rule('range');
+    			else	{
+    				var s = this.advance();
+    			}
+    		}else if(this.predToken('~')){
+    			this.rule('not');
+    		}else if(this.predToken('(')){
+    			this.advance();
+    			this.rule('choice');
+    			this.match(')');
+    			if(this.inTokens('?','+','*'))
+    				this.advance();
+    		}else if(this.predToken('.')){
+    			this.advance();
+    			return {
+    				type: 'wildChar'
+    			};
+    		}else if(this.predToken('{')){
+        		this.rule('block');
+    		}else if(this.predToken('options')){
+    			this.rule('options');
+    		}else{
+    			this.unexpect(this.la());
+    		}
+    },
+    
+    subRule:function(){
+    		var id = this.advance();
+    		var ast = {
+				type:'subRule',
+				label: label,
+				name: id
+			};
+    		if(this.inTokens('?','+','*')){
+    			return this.rule('bnfSuffix', ast).result;
+    		}else{
+			return ast;
+		}
+	},
+	
+	bnfSuffix:function(content){
+		var bnf = this.advance();
+    		return {
+			type:'bnf',
+			label: label,
+			syntax:bnf,
+			child:{
+				type:'choice',
+				child: {
+					type: 'item',
+					child:content
+				}
+			}
+		};
+	},
+    
+    regex:function(){
+    		this.match('[');
+    		if(this.inTokens('^')){
+    			this.advance();
+    			var choice = this.rule('charChoice');
+    			return {
+    				type: 'not',
+    				child: choice
+    			};
+    		}else{
+    			this.rule('charChoice');
+    		}
+    },
+    
+    charChoice:function(){
+    		
+    },
+    
+    options:function(){
+    		this.advance();
+    		this.rule('block');
+    		
+    		this.match(':');
+    		return null;
+    },
+    not:function(){
+    		this.match('~');
+    		this.rule('choice');
+    },
+    range:function(){
+    		this.advance();
+    		this.advance();
+    		this.match('stringLit');
     },
 
     isRule:function(){
@@ -295,14 +423,13 @@ var grammar = {
 				this.bnfLoop(0, function(){ return !this.predToken(']'); });
 				this.match(']');
 			});
-		if(this.predToken('options'))
-				this.rule('options');
 		if(this.predToken('{')){
 				this.rule('block');
 		}
 		if(this.predToken('options'))
-				this.rule('options');
-		this.match(':');
+			this.rule('options');
+		else
+			this.match(':');
     },
     action:function(){
         this.match('@');
@@ -310,12 +437,6 @@ var grammar = {
         this.rule('block');
         return null;
     },
-    
-    options:function(){
-    		this.match('options');
-    		this.rule('block');
-    },
-    
     other:function(){
     		this.advance();
     		return null;
@@ -328,7 +449,7 @@ exports.create = function(text){
     		return parser.rule("root");
     }
     
-    parser.onAST = function(stack, ast){
+    /* parser.onAST = function(stack, ast){
         if(!Array.isArray(ast)){
             ast.start = stack.startToken.pos[0];
             ast.stop = stack.stopToken.pos[1];
@@ -336,6 +457,6 @@ exports.create = function(text){
         }
         
         return ast;
-    }
+    } */
     return parser;
 };
