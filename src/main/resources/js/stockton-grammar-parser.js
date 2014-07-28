@@ -279,12 +279,12 @@ var grammar = {
         var choice = this.rule('choice').result;
         this.match(';');
         var chr0 = name.charAt(0);
-        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name, child: choice};
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name, child: [choice]};
     },
     
     choice:function(){
     		var child = [];
-    		child.push(this.rule('item'));
+    		child.push(this.rule('item').result);
     		this.bnfLoop(0, function(){ return this.predToken("|"); },
     			function(){
     				this.advance();
@@ -305,73 +305,83 @@ var grammar = {
     },
     
     element:function(){
+    		var ret = null;
     		if(this.predToken('id', ':')){
     			var label = this.advance();
     			this.advance();
     		}
     		if(this.predToken('id')){
-    			this.rule('subRule');
+    			ret = this.rule('subRule').result;
     		}else if(this.predToken('[')){
+    			//todo
     			this.unexpect(this.la());
     			this.rule('regex');
     		}else if(this.predToken('stringLit')){
     			if(this.predToken('stringLit', '..'))
-    				this.rule('range');
+    				ret = this.rule('range').result;
     			else	{
     				var s = this.advance();
+    				ret = s.text();
     			}
     		}else if(this.predToken('~')){
-    			this.rule('not');
+    			ret = this.rule('not').result;
     		}else if(this.predToken('(')){
     			this.advance();
-    			this.rule('choice');
+    			var choice = this.rule('choice').result;
     			this.match(')');
-    			if(this.inTokens('?','+','*'))
-    				this.advance();
+    			
     		}else if(this.predToken('.')){
     			this.advance();
-    			return {
-    				type: 'wildChar'
+    			ret = {
+    				type: 'wildChar',
+    				label: label
     			};
     		}else if(this.predToken('{')){
         		this.rule('block');
+        		ret = null;
     		}else if(this.predToken('options')){
     			this.rule('options');
+    			ret = null;
     		}else{
     			this.unexpect(this.la());
     		}
+    		if(this.inTokens('?','+','*')){
+    			ret = this.rule('bnfSuffix', ret).result;
+    		}
+    		//if(ret){
+    			if(label && ret)
+    				return {type:'label', child:[ret]};
+    			else
+    				return ret;
+    		//}
     },
     
     subRule:function(){
     		var id = this.advance();
     		var ast = {
 				type:'subRule',
-				label: label,
-				name: id
+				name: id.text()
 			};
-    		if(this.inTokens('?','+','*')){
-    			return this.rule('bnfSuffix', ast).result;
-    		}else{
-			return ast;
-		}
+    		return ast;
 	},
 	
 	bnfSuffix:function(content){
 		var bnf = this.advance();
     		return {
 			type:'bnf',
-			label: label,
-			syntax:bnf,
-			child:{
+			syntax:bnf.text(),
+			child:[{
 				type:'choice',
-				child: {
+				child: [{
 					type: 'item',
 					child:content
-				}
-			}
+				}]
+			}]
 		};
 	},
-    
+    /**
+    todo
+    */
     regex:function(){
     		this.match('[');
     		if(this.inTokens('^')){
@@ -399,12 +409,17 @@ var grammar = {
     },
     not:function(){
     		this.match('~');
-    		this.rule('choice');
+    		var ret = this.rule('choice').result;
+    		return {
+    			type:'not',
+    			child:ret
+    		};
     },
     range:function(){
-    		this.advance();
-    		this.advance();
+    		var f = this.advance();
+    		var t = this.advance();
     		this.match('stringLit');
+    		return { type:'range', from:f.text(), to:t.text()};
     },
 
     isRule:function(){
