@@ -226,7 +226,7 @@ function hex(lex){
 }
 
 var grammar = {
-	//AST:[ 'rule'],
+	AST:[],
 	
     root: function(){
         this.rule('blockContent', true);
@@ -254,12 +254,13 @@ var grammar = {
     },
     
     rule:function(){
-    		if(this.inTokens('protected', 'fragment'))
+    		if(this.inTokens('protected', 'fragment')){
+    			var fragment = true;
     			this.advance();
+    		}
         var name = this.match('id').text();
         if(this.inTokens('!'))
         		this.advance();
-        //this.log('NAME:'+ name);
         this.bnfLoop(0, function(){
 				return this.inTokens("[", "returns");
 		}, function(){
@@ -276,34 +277,36 @@ var grammar = {
         		this.rule('options');
         	else
         		this.match(':');
-        var choice = this.rule('choice').result;
+        var choice = this.rule('alts').result;
         this.match(';');
         var chr0 = name.charAt(0);
-        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'), name: name, child: [choice]};
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'),fragment: fragment, name: name, alts: choice};
     },
     
-    choice:function(){
+    alts:function(){
     		var child = [];
-    		child.push(this.rule('item').result);
+    		child.push({type:'alt', child:this.rule('alt').result});
     		this.bnfLoop(0, function(){ return this.predToken("|"); },
     			function(){
     				this.advance();
-    				child.push(this.rule('item').result);
+    				child.push({type:'alt', child:this.rule('alt').result});
     			});
     		return {
-    			type:'choice',
+    			type:'alts',
     			child: child
     		};
     },
     
-    item:function(){
+    alt:function(){
     		this.bnfLoop(0, function(){ return !this.inTokens("|", ";", ")"); },
     			function(){
-    				this.rule('element');
+    				
+    				this.rule('element').result;
     			});
-    		
     },
-    
+    /**
+    subRule, regex, range, stringLit, not, alts, wildChar, bnf, label
+    */
     element:function(){
     		var ret = null;
     		if(this.predToken('id', ':')){
@@ -327,9 +330,8 @@ var grammar = {
     			ret = this.rule('not').result;
     		}else if(this.predToken('(')){
     			this.advance();
-    			var choice = this.rule('choice').result;
+    			ret = this.rule('alts').result;
     			this.match(')');
-    			
     		}else if(this.predToken('.')){
     			this.advance();
     			ret = {
@@ -349,10 +351,11 @@ var grammar = {
     			ret = this.rule('bnfSuffix', ret).result;
     		}
     		//if(ret){
-    			if(label && ret)
-    				return {type:'label', child:[ret]};
-    			else
-    				return ret;
+    		if(label && ret)
+    			return {type:'label', child:[ret]};
+    		else{
+    			return ret;
+    		}
     		//}
     },
     
@@ -370,13 +373,7 @@ var grammar = {
     		return {
 			type:'bnf',
 			syntax:bnf.text(),
-			child:[{
-				type:'choice',
-				child: [{
-					type: 'item',
-					child:content
-				}]
-			}]
+			child: content
 		};
 	},
     /**
@@ -409,7 +406,7 @@ var grammar = {
     },
     not:function(){
     		this.match('~');
-    		var ret = this.rule('choice').result;
+    		var ret = this.rule('element').result;
     		return {
     			type:'not',
     			child:ret
