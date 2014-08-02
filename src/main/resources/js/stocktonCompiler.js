@@ -71,7 +71,7 @@ Compiler.prototype = {
 			case 'range':
 				var newState = buildState();
 				if(!state.transitions.some(function(t){
-						if(t.type === 'range' && t.from === ast.from && t.to === ast.to){
+						if(t.type === 'range' && RangeUtil.isOverlap(ast, t)){
 							state = t.state;
 							return true;
 						}else
