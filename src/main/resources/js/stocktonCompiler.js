@@ -1,4 +1,8 @@
-var grmParser = require('./stockton-grammar-parser.js');
+var grmParser = require('./stockton-grammar-parser.js'),
+	_ = require("./underscore-min.js"),
+	stUtil = require('./stockton-util.js'),
+	RangeUtil = stUtil.RangeUtil;
+
 
 function compile(text){
 	return new Compiler().compile(text);
@@ -53,14 +57,14 @@ Compiler.prototype = {
 		if(typeof(ast) === 'string'){
 			for(var i=0,l=ast.length; i<l; i++){
 				var chr = ast.charAt(i);
-				var newState = buildState();
+				
 				if(!state.transitions.some(function(t){
 						if(t.type === 'la' && t.v === chr){
 							state = t.state;
 							return true;
-						}else
-							return false;
+						}
 				})){
+					var newState = buildState();
 					state.transitions.push({type: 'la', v: chr, state: newState});
 					state = newState;
 				}
@@ -69,19 +73,31 @@ Compiler.prototype = {
 		}
 		switch(ast.type){
 			case 'range':
-				var newState = buildState();
 				if(!state.transitions.some(function(t){
-						if(t.type === 'range' && RangeUtil.isOverlap(ast, t)){
+						if(t.type === 'range' && t.from === ast.from && t.to === ast.to){
 							state = t.state;
 							return true;
-						}else
-							return false;
+						}else if(t.type === 'range' && RangeUtil.isOverlap(t, ast)){
+							
+						}
 				})){
+					var newState = buildState();
 					state.transitions.push({type: 'range', from: ast.from, to: ast.to, state: newState});
 					state = newState;
 				}
+			case 'not':
+				if(!state.transitions.some(function(t){
+						if(t.type === 'not' && t.from === ast.from && t.to === ast.to){
+							state = t.state;
+							return true;
+						}
+				})){
+			case 'wildChar':
+			case 'bnf':
+			case 'label':
 			case 'alts':
-				
+			case 'subRule':
+		
 		}
 	},
 	
