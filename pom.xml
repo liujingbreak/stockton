@@ -13,7 +13,7 @@
 	
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<sidekick.path>/Users/liujing/myproject/SideKick-1.4/SideKick.jar</sidekick.path>
+		<sidekick.path>/Applications/jEdit.app/Contents/Resources/Java/jars/SideKick.jar</sidekick.path>
 		<jedit.path>/Applications/jEdit.app/Contents/Resources/Java/jedit.jar</jedit.path>
 		<errorlist.path>/Applications/jEdit.app/Contents/Resources/Java/jars/ErrorList.jar</errorlist.path>
 	</properties>
@@ -28,7 +28,7 @@
 		<dependency>
 			<groupId>sidekick</groupId>
 			<artifactId>sidekick</artifactId>
-			<version>1.4</version>
+			<version>1.5</version>
 			<scope>system</scope>
 			<systemPath>${sidekick.path}</systemPath>
 		</dependency>

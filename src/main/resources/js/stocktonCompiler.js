@@ -11,9 +11,10 @@ function compile(text){
 }
 
 function Compiler(){
-	this.lexRuleMap = {};
-	this.lexRules = []; // only contains non-protected/non-fragment rules
+	this.lexRuleASTMap = {};
+	this.lexRuleASTs = [];
 	this.lexStartState = buildState();
+	this.lexRuleStates = [];
 	this.lexState = this.lexStartState;
 }
 
@@ -24,20 +25,20 @@ Compiler.prototype = {
 		var ast = parser.parse().result;
 		ast.forEach(function(ruleAst){
 			if(ruleAst.type == 'lexRule'){
-				this.lexRuleMap[ruleAst.name] = ruleAst;
+				this.lexRuleASTMap[ruleAst.name] = ruleAst;
+				this.lexRuleASTs.push(ruleAst);
 				if(!ruleAst.fragment){
 					console.log(ruleAst.name);
-					this.lexRules.push(ruleAst);
 				}
+				
 			}
 		}, this);
-		
-		this.genLexerStateMachine();
+		this._createATN();
 	},
 	
-	genLexerStateMachine:function(){
-		this.lexRules.forEach(function(rule){
-			buildLexerASTState(rule.alts, this.lexStartState);
+	_createATN:function(){
+		this.lexRuleASTs.forEach(function(ruleAST){
+				this.buildLexerATN(ruleAST, state);
 		}, this);
 	},
 	
@@ -48,12 +49,12 @@ Compiler.prototype = {
 	/**
 	transition's properties:
 	{
-		type - 'la', 
+		type - 'la'/'rule', 
 		v - the char
 		state - the next state
 	}
 	*/
-	buildLexerASTState:function(ast, state){
+	buildLexerATN:function(ast, state){
 		if(typeof(ast) === 'string'){
 			for(var i=0,l=ast.length; i<l; i++){
 				var chr = ast.charAt(i);
@@ -65,7 +66,7 @@ Compiler.prototype = {
 						}
 				})){
 					var newState = buildState();
-					state.transitions.push({type: 'la', v: chr, state: newState});
+					state.transitions.push({type: 'la', v: chr, target: newState});
 					state = newState;
 				}
 			}
@@ -82,7 +83,7 @@ Compiler.prototype = {
 						}
 				})){
 					var newState = buildState();
-					state.transitions.push({type: 'range', from: ast.from, to: ast.to, state: newState});
+					state.transitions.push({type: 'range', from: ast.from, to: ast.to, target: newState});
 					state = newState;
 				}
 			case 'not':
@@ -92,6 +93,7 @@ Compiler.prototype = {
 							return true;
 						}
 				})){
+				}
 			case 'wildChar':
 			case 'bnf':
 			case 'label':

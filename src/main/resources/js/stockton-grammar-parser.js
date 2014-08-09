@@ -40,7 +40,7 @@ function scanToken(lex){
     case '{':
     case '}':
     case '(':
-    case ')': case ':': case ';': case '!': case '?': case '+': case '*': case '~':
+    case ')': case ':': case ';': case '!': case '?': case '+': case '*': case '~': case '@':
     case '|':
         lex.advance();
         lex.emitToken(c);
@@ -273,6 +273,11 @@ var grammar = {
         if(this.predToken('{')){
         		this.rule('block');
         }
+        this.bnfLoop(0, function(){
+				return this.inTokens('@');
+		}, function(){
+			this.rule('action');
+		});
         if(this.predToken('options'))
         		this.rule('options');
         	else
@@ -438,6 +443,11 @@ var grammar = {
 		if(this.predToken('{')){
 				this.rule('block');
 		}
+		this.bnfLoop(0, function(){
+				return this.inTokens('@');
+		}, function(){
+			this.rule('action');
+		});
 		if(this.predToken('options'))
 			this.rule('options');
 		else
