@@ -10,4 +10,4 @@ var ast = parser.parse();
 debugger;
 console.log(JSON.stringify(ast.result, null, '  '));
 
-compiler(str);
+//compiler(str);

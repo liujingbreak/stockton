@@ -9,6 +9,22 @@ function compile(text){
 	
 	
 }
+var _stateType = 0;
+var stateName2Type = {
+	altsEnd: _stateType++,
+	decision: _stateType++,
+	altsStart:		 _stateType++,
+	basicAltsStart:  _stateType++,
+	plusAltsStart:   _stateType++,
+	starAltsStart:   _stateType++,
+	plusLoopBack:    _stateType++,
+	starLoopEntry:   _stateType++,
+	tokenStart:      _stateType++,
+	loopEnd:         _stateType++,
+	ruleStart:       _stateType++,
+	ruleStop:        _stateType++,
+	starLoopBack:    _stateType++
+};
 
 function Compiler(){
 	this.lexRuleASTMap = {};
@@ -16,6 +32,7 @@ function Compiler(){
 	this.lexStartState = buildState();
 	this.lexRuleStates = [];
 	this.lexState = this.lexStartState;
+	this.currentRuleName = null;
 }
 
 Compiler.prototype = {
@@ -37,15 +54,24 @@ Compiler.prototype = {
 	},
 	
 	_createATN:function(){
+		this.createRuleStartAndStopATNStates();
 		this.lexRuleASTs.forEach(function(ruleAST){
-				this.buildLexerATN(ruleAST, state);
+				this.currentRuleName = ruleAST.name;
+				buildLexerATN(ruleAST);
 		}, this);
 	},
-	
-	buildState:function(){
-		return { transition:[] };
+	createRuleStartAndStopATNStates:function(){
+		
+	}
+	/**
+	@param type basic,
+	*/
+	newState:function(type){
+		return new ATNState(type);
 	},
-	
+	/* newTransition:funciton(type, targetState){
+		return { type: type, target: targetState };
+	} */
 	/**
 	transition's properties:
 	{
@@ -55,54 +81,79 @@ Compiler.prototype = {
 	}
 	*/
 	buildLexerATN:function(ast, state){
-		if(typeof(ast) === 'string'){
-			for(var i=0,l=ast.length; i<l; i++){
-				var chr = ast.charAt(i);
-				
-				if(!state.transitions.some(function(t){
-						if(t.type === 'la' && t.v === chr){
-							state = t.state;
-							return true;
-						}
-				})){
-					var newState = buildState();
-					state.transitions.push({type: 'la', v: chr, target: newState});
-					state = newState;
-				}
+		if(typeof(ast) === 'string'){//stringlit
+			var left = this.newState('basic');
+			var prev = left;
+			var right;
+			for (var i=0,l=ast.length; i<l; i++) {
+				right = this.newState('basic');
+				prev.addTransition({type: 'atom', target:right, label: ast.charAt(i)});
+				prev = right;
 			}
-			return;
+			return {left: left, right: right};
 		}
 		switch(ast.type){
 			case 'range':
-				if(!state.transitions.some(function(t){
-						if(t.type === 'range' && t.from === ast.from && t.to === ast.to){
-							state = t.state;
-							return true;
-						}else if(t.type === 'range' && RangeUtil.isOverlap(t, ast)){
-							
-						}
-				})){
-					var newState = buildState();
-					state.transitions.push({type: 'range', from: ast.from, to: ast.to, target: newState});
-					state = newState;
-				}
 			case 'not':
-				if(!state.transitions.some(function(t){
-						if(t.type === 'not' && t.from === ast.from && t.to === ast.to){
-							state = t.state;
-							return true;
-						}
-				})){
-				}
 			case 'wildChar':
-			case 'bnf':
+			case '*':
+			case '+':
+			case '?':
 			case 'label':
 			case 'alts':
-			case 'subRule':
-		
+			case 'tokenRef':
+				if(ast.name == 'EOF'){
+					var left = this.newState('basic', ast);
+					var right = this.newState('basic', ast);
+					left.addTransition({type: 'atom', target:right, label:'EOF'});
+					return {left: left, right: right};
+				}else{
+					var ruleAST = this.lexRuleASTMap[ast.name];
+					if(ruleAST == null){
+						console.log("undefined rule: "+ ast.name);
+						return null;
+					}
+				}
 		}
 	},
-	
+	buildLexerATN_child:function(ast, state){
+		var ch = ast.child;
+		for(var i=0,l=ch.length; i<l; i++){
+			buildLexerATN(ch[i], state);
+		}
+	}
 }
+function ATNState(type){
+	this.type = type;
+	this.transitions = [];
+	this.epsilonOnlyTransitions = false;
+}
+ATNState.prototype = {
+	addTransition:function(t){
+		if(this.transitions.length == 0)
+			this.epsilonOnlyTransitions = (t.type == 'epsilon');
+		else if(this.epsilonOnlyTransitions != (t.type == 'epsilon')){
+			this.epsilonOnlyTransitions = false;
+			console.log('ATN state %s has both epsilon and non-epsilon transitions.', this.type);
+		}
+		this.transitions.push(t);
+	}
+};
 
+function ATNBuilder(compiler){
+}
+ATNBuilder.prototype = {
+	ruleBlock:function(ast){
+		var alts = _.find(ast.child, function(){
+				return c.type === 'alts';
+		});
+		
+		alts.child.forEach(function(alt){
+				this.alternative(alt);
+		}, this);
+	},
+	alternative:function(ast){
+		
+	}
+};
 module.exports = compile;

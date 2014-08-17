@@ -285,7 +285,7 @@ var grammar = {
         var choice = this.rule('alts').result;
         this.match(';');
         var chr0 = name.charAt(0);
-        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'),fragment: fragment, name: name, alts: choice};
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'),fragment: fragment, name: name, child: choice};
     },
     
     alts:function(){
@@ -310,7 +310,7 @@ var grammar = {
     			});
     },
     /**
-    subRule, regex, range, stringLit, not, alts, wildChar, bnf, label
+    tokenRef, regex, range, stringLit, not, alts, wildChar, bnf, label
     */
     element:function(){
     		var ret = null;
@@ -319,7 +319,7 @@ var grammar = {
     			this.advance();
     		}
     		if(this.predToken('id')){
-    			ret = this.rule('subRule').result;
+    			ret = this.rule('tokenRef').result;
     		}else if(this.predToken('[')){
     			//todo
     			this.unexpect(this.la());
@@ -364,10 +364,10 @@ var grammar = {
     		//}
     },
     
-    subRule:function(){
+    tokenRef:function(){
     		var id = this.advance();
     		var ast = {
-				type:'subRule',
+				type:'tokenRef',
 				name: id.text()
 			};
     		return ast;
@@ -376,9 +376,8 @@ var grammar = {
 	bnfSuffix:function(content){
 		var bnf = this.advance();
     		return {
-			type:'bnf',
-			syntax:bnf.text(),
-			child: content
+			type:bnf.text(),
+			child: content.type ==='alts'? content : {type:'alts', child:[ content ]}
 		};
 	},
     /**
