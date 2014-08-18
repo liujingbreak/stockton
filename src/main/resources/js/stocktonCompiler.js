@@ -33,6 +33,7 @@ function Compiler(){
 	this.lexRuleStates = [];
 	this.lexState = this.lexStartState;
 	this.currentRuleName = null;
+	this.atn = {};
 }
 
 Compiler.prototype = {
@@ -61,10 +62,21 @@ Compiler.prototype = {
 		}, this);
 	},
 	createRuleStartAndStopATNStates:function(){
-		
-	}
+		this.atn.ruleToStartState = {};
+		this.atn.ruleToStopState = {};
+		this.lexRuleASTs.forEach(function(ruleAST){
+				var start = this.newState('ruleStart', ruleAST);
+				var stop = this.newState('ruleStop', ruleAST);
+				start.stopState = stop;
+				//start.isPrecedenceRule = r instanceof LeftRecursiveRule;
+				start.ruleName = ruleAST.name;
+				stop.ruleName = ruleAST.name;
+				this.atn.ruleToStartState[ruleAST.name] = start;
+				this.atn.ruleToStopState[ruleAST.name] = start;
+		}, this);
+	},
 	/**
-	@param type basic,
+	@param type: basic, ruleStart
 	*/
 	newState:function(type){
 		return new ATNState(type);
@@ -94,8 +106,12 @@ Compiler.prototype = {
 		}
 		switch(ast.type){
 			case 'range':
+				var left = this.newState('basic', ast);
+				var right = this.newState('basic', ast);
+				left.addTransition({type:'range', from: t1, to: t2});
+				return {left:left, right:right};
 			case 'not':
-			case 'wildChar':
+			case 'wildcard':
 			case '*':
 			case '+':
 			case '?':
@@ -113,6 +129,12 @@ Compiler.prototype = {
 						console.log("undefined rule: "+ ast.name);
 						return null;
 					}
+					var start = this.atn.ruleToStartState[ast.name];
+					var left = this.newState('basic');
+					var right = this.newState('basic');
+					var call = {type:'rule', ruleName:ast.name, target: right};
+					left.addTransition(call);
+					return {left:left, right: right};
 				}
 		}
 	},

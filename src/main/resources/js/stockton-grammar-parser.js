@@ -310,7 +310,7 @@ var grammar = {
     			});
     },
     /**
-    tokenRef, regex, range, stringLit, not, alts, wildChar, bnf, label
+    tokenRef, regex, range, stringLit, not, alts, wildcard, bnf, label
     */
     element:function(){
     		var ret = null;
@@ -340,7 +340,7 @@ var grammar = {
     		}else if(this.predToken('.')){
     			this.advance();
     			ret = {
-    				type: 'wildChar',
+    				type: 'wildcard',
     				label: label
     			};
     		}else if(this.predToken('{')){
