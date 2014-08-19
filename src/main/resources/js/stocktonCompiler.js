@@ -108,15 +108,24 @@ Compiler.prototype = {
 			case 'range':
 				var left = this.newState('basic', ast);
 				var right = this.newState('basic', ast);
-				left.addTransition({type:'range', from: t1, to: t2});
+				left.addTransition({type:'range', target: right, from: ast.from, to: ast.to});
 				return {left:left, right:right};
 			case 'not':
 			case 'wildcard':
+				var left = this.newState('basic', ast);
+				var right = this.newState('basic', ast);
+				left.addTransition({type:'wildcard', target:right});
+				return {left:left, right:right};
+			case 'alts':
+				var alts = this.buildLexerATN_child(ast, state);
+				if ( alts.length == 1 ) {
+					return alts[0];
+				}
 			case '*':
+				
 			case '+':
 			case '?':
 			case 'label':
-			case 'alts':
 			case 'tokenRef':
 				if(ast.name == 'EOF'){
 					var left = this.newState('basic', ast);
@@ -140,9 +149,11 @@ Compiler.prototype = {
 	},
 	buildLexerATN_child:function(ast, state){
 		var ch = ast.child;
+		var list = new Array(ch.length);
 		for(var i=0,l=ch.length; i<l; i++){
-			buildLexerATN(ch[i], state);
+			list[i] = buildLexerATN(ch[i], state);
 		}
+		return list;
 	}
 }
 function ATNState(type){
