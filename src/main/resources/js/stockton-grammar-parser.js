@@ -1,4 +1,5 @@
-var LL = require('./baseLLParser.js');
+var LL = require('./baseLLParser.js'),
+	_ = require("./underscore-min.js");
 
 var keywordMap = {
 	'options': 0,
@@ -192,6 +193,8 @@ var numberSuffix = {'f':true, 'F':true, 'd':true, 'D':true};
 
 var HEX_CHAR = {'a':true, A:true, B:true, 'b':true, C:true, c:true, 'd':true, 'D':true, e:true, E:true, f:true, F:true};
 
+var NOT_CHILD_TYPES = {tokenRef:true, range:true, stringLit:true};
+
 function number(lex){
     var d = lex.advance();
     if(d === '0' && lex.la() === 'x'){
@@ -305,12 +308,11 @@ var grammar = {
     alt:function(){
     		this.bnfLoop(0, function(){ return !this.inTokens("|", ";", ")"); },
     			function(){
-    				
     				this.rule('element').result;
     			});
     },
     /**
-    tokenRef, regex, range, stringLit, not, alts, wildcard, bnf, label
+    tokenRef, regex, range, stringLit, not, alts, wildcard, bnf, label, set
     */
     element:function(){
     		var ret = null;
@@ -340,8 +342,7 @@ var grammar = {
     		}else if(this.predToken('.')){
     			this.advance();
     			ret = {
-    				type: 'wildcard',
-    				label: label
+    				type: 'wildcard'
     			};
     		}else if(this.predToken('{')){
         		this.rule('block');
@@ -377,6 +378,7 @@ var grammar = {
 		var bnf = this.advance();
     		return {
 			type:bnf.text(),
+			pos: bnf.position2str(),
 			child: content.type ==='alts'? content : {type:'alts', child:[ content ]}
 		};
 	},
@@ -408,14 +410,33 @@ var grammar = {
     		this.match(':');
     		return null;
     },
+    
     not:function(){
     		this.match('~');
-    		var ret = this.rule('element').result;
+    		if(this.inTokens('(')){
+    			this.advance();
+    			var ret = [ this.rule('element').result ];
+    			this.bnfLoop(0, function(){ return this.predToken("|"); },
+    			function(){
+    				this.advance();
+    				ret.push( this.rule('element').result );
+    			});
+    			this.match(')');
+    		}else{
+    			var ret = [ this.rule('element').result ];
+    		}
+    		//var ret = this.rule('element').result;
+    		//if(! NOT_CHILD_TYPES.hasOwnProperty(ret.type))
+    		//	throw new Error('"~" does not support expression other than: '+ _.keys(NOT_CHILD_TYPES));
     		return {
     			type:'not',
-    			child:ret
+    			child:[{
+    				type:'set',
+    				child: ret
+    			}]
     		};
     },
+    
     range:function(){
     		var f = this.advance();
     		var t = this.advance();
