@@ -488,8 +488,8 @@ function _optimizeSets(atn){
 			var matchSet = new IntervalSet();
 			for (var j = interval.a; j <= interval.b; j++) {
 				var matchTransition = decision.transitions[j].target.transitions[0];
-				if (matchTransition instanceof NotSetTransition) {
-					throw new UnsupportedOperationException("Not yet implemented.");
+				if (matchTransition.type === 'notSet') {
+					throw new Error("Not yet implemented.");
 				} else {
 					matchSet.addAll(matchTransition.label());
 				}
