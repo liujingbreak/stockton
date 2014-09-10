@@ -1,7 +1,9 @@
 var grmParser = require('./stockton-grammar-parser.js'),
 	_ = require("./underscore-min.js"),
 	stUtil = require('./stockton-util.js'),
-	RangeUtil = stUtil.RangeUtil;
+	RangeUtil = stUtil.RangeUtil,
+	IntervalSet = require('./misc.js').IntervalSet,
+	Interval = require('./misc.js').Interval;
 
 
 function compile(text){
@@ -451,6 +453,54 @@ _.extend(TailEpsilonRemover.prototype, ATNVisitor, {
 	}
 });
 
+function optimizeATN(atn){
+	_optimizeSets(atn);
+	_optimizeStates(atn);
+}
+
+var _optTrans = { atom: true, range: true, set:true};
+
+function _optimizeSets(atn){
+	var removedStates = 0;
+	var decisions = atn.decisionToState;
+	decisions.forEach(function(decision){
+		if(decision.ruleName && decision.ruleName.charAt(0).match(/[a-z]/))
+			return;
+		var setTransitions = new IntervalSet();
+		for (var i = 0, l = decision.transitions.length; i<l; i++) {
+			var epsTransition = decision.transitions[i];
+			if(espTransition.type === 'epsilon' || epsTransition.target.transitions.length != 1)
+				continue;
+			var transition = epsTransition.target.transition[0];
+			if (!(transition.target.type === 'blockEndState'))
+				continue;
+			if(transition.type === 'notSet')
+				continue;
+			if(transition.type in _optTrans)
+				setTransitions.add(i);
+		}
+		
+		for(var i = setTransitions.intervals.length -1; i >= 0; i--){
+			var interval = setTransitions.intervals[i];
+			if(interval.length <= 1)
+				continue;
+			var blockEndState = decision.transitions[interval.a].target.transitions[0].target;
+			var matchSet = new IntervalSet();
+			for (var j = interval.a; j <= interval.b; j++) {
+				var matchTransition = decision.transitions[j].target.transitions[0];
+				if (matchTransition instanceof NotSetTransition) {
+					throw new UnsupportedOperationException("Not yet implemented.");
+				} else {
+					matchSet.addAll(matchTransition.label());
+				}
+			}
+		}
+	});
+}
+
+function _optimizeStates(atn){
+	
+}
 
 function ATNBuilder(compiler){
 }
