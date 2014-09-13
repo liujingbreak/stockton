@@ -401,6 +401,34 @@ exports.MultiMap = (function(){
 		},
 		setReadonly:function(readonly) {
 			this.readonly = readonly;
+		},
+		size: function(){
+			var n = 0;
+			var numIntervals = this.intervals.length;
+			if ( numIntervals==1 ) {
+				var firstInterval = this.intervals[0];
+				return firstInterval.b-firstInterval.a+1;
+			}
+			for (var i = 0; i < numIntervals; i++) {
+				var I = this.intervals[i];
+				n += (I.b-I.a+1);
+			}
+			return n;
+		},
+		getMinElement: function() {
+			if ( this.isNil() ) {
+				return 0;
+			}
+			var n = this.intervals.length;
+			for (var i = 0; i < n; i++) {
+				var I = this.intervals[i];
+				var a = I.a;
+				var b = I.b;
+				for (var v=a; v<=b; v++) {
+					if ( v>=0 ) return v;
+				}
+			}
+			return 0;
 		}
     };
 	exports.IntervalSet = IntervalSet;

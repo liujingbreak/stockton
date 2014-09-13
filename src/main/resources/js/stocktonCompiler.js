@@ -494,6 +494,25 @@ function _optimizeSets(atn){
 					matchSet.addAll(matchTransition.label());
 				}
 			}
+			
+			var newTransition;
+			if (matchSet.intervals.length == 1) {
+				if (matchSet.size() == 1) {
+					newTransition = {type: 'atom', target: blockEndState, label: matchSet.getMinElement()};
+				} else {
+					var matchInterval = matchSet.intervals[0];
+					newTransition = {type: 'range', target: blockEndState, from: matchInterval.a, to: matchInterval.b};
+				}
+			} else {
+				newTransition = {type: 'set', target: blockEndState, set: matchSet};
+			}
+            
+			decision.transitions[interval.a].target.transitions[0] = newTransition;
+			for (var j = interval.a + 1; j <= interval.b; j++) {
+				var removed = decision.splice(interval.a + 1, 1);
+				atn.removeState(removed.target);
+				removedStates++;
+			}
 		}
 	});
 }
