@@ -11,22 +11,6 @@ function compile(text){
 	
 	
 }
-var _stateType = 0;
-var stateName2Type = {
-	altsEnd: _stateType++,
-	decision: _stateType++,
-	altsStart:		 _stateType++,
-	basicAltsStart:  _stateType++,
-	plusAltsStart:   _stateType++,
-	starAltsStart:   _stateType++,
-	plusLoopBack:    _stateType++,
-	starLoopEntry:   _stateType++,
-	tokenStart:      _stateType++,
-	loopEnd:         _stateType++,
-	ruleStart:       _stateType++,
-	ruleStop:        _stateType++,
-	starLoopBack:    _stateType++
-};
 
 function Compiler(){
 	this.lexRuleASTMap = {};
@@ -518,7 +502,19 @@ function _optimizeSets(atn){
 }
 
 function _optimizeStates(atn){
-	
+	var compressed = [];
+	var i = 0; // new state number
+	for (ATNState s : atn.states) {
+		if ( s!=null ) {
+			compressed.add(s);
+			s.stateNumber = i; // reset state number as we shift to new position
+			i++;
+		}
+	}
+//	System.out.println(compressed);
+//	System.out.println("ATN optimizer removed " + (atn.states.size() - compressed.size()) + " null states.");
+	atn.states.clear();
+	atn.states.addAll(compressed);
 }
 
 function ATNBuilder(compiler){
