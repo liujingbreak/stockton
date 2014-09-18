@@ -57,7 +57,7 @@ Compiler.prototype = {
 			}
 		}, this);
 		this._createATN();
-		optimizeSets(this.atn);//todo
+		optimizeATN(this.atn);//todo
 	},
 	
 	_createATN:function(){
@@ -504,17 +504,15 @@ function _optimizeSets(atn){
 function _optimizeStates(atn){
 	var compressed = [];
 	var i = 0; // new state number
-	for (ATNState s : atn.states) {
+	atn.states.forEach(function(s){
 		if ( s!=null ) {
-			compressed.add(s);
+			compressed.push(s);
 			s.stateNumber = i; // reset state number as we shift to new position
 			i++;
 		}
-	}
-//	System.out.println(compressed);
-//	System.out.println("ATN optimizer removed " + (atn.states.size() - compressed.size()) + " null states.");
-	atn.states.clear();
-	atn.states.addAll(compressed);
+	});
+	atn.states.splice(0, atn.states.length);
+	atn.states.push.apply(atn.states, compressed);
 }
 
 function ATNBuilder(compiler){
