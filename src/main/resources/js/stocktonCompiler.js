@@ -8,21 +8,38 @@ var grmParser = require('./stockton-grammar-parser.js'),
 
 function compile(text){
 	return new Compiler().compile(text);
-	
-	
 }
+/** @class AST */
+AST = {
+	getFirstChildWithType:function(ast, type){
+		return _.find(ast.child, function(c){
+				return c.type === type;
+		});
+	},
+	getStartNode:function(ast){
+		var child = ast.child;
+		if(child && child.length > 0){
+			return AST.getStart(child[0]);
+		}else
+			return ast;
+	}
+};
 
 function Compiler(){
 	this.lexRuleASTMap = {};
 	this.lexRuleASTs = [];
-	this.lexStartState = buildState();
-	this.lexRuleStates = [];
-	this.lexState = this.lexStartState;
+	//this.lexStartState = buildState();
+	//this.lexRuleStates = [];
+	//this.lexState = this.lexStartState;
 	this.currentRuleName = null;
 	this.preventEpsilonOptionalBlocks = [];
 	this.preventEpsilonClosureBlocks = [];
+	//LexerATNFactory.atn
 	this.atn = {
+		startState: null,
 		states : [],
+		ruleToStartState: null,
+		ruleToStopState: null,
 		decisionToState:[],
 		defineDecisionState:function(s){
 			this.decisionToState.push(s);
@@ -31,7 +48,7 @@ function Compiler(){
 		addState:function(state){
 			if (state != null) {
 				state.atn = this;
-				state.stateNumber = states.length;
+				state.stateNumber = this.states.length;
 			}
 			this.states.push(state);
 		},
@@ -40,33 +57,101 @@ function Compiler(){
 		}
 	};
 }
+module.exports = Compiler;
+
+var EPSILON_TYPES = {
+	epsilon: true, range: false, rule: true, predicate: true, action: true,
+	precedence: true, wildcard:false, notSet: false, set: false, atom: false
+};
+	
+function isEpsilon(transition){
+		var yes = EPSILON_TYPES[transition.type];
+		if(yes === undefined){
+			throw new Error('undefined transition type: '+ transition.type);
+		}
+		return EPSILON_TYPES[transition.type];
+}
 
 Compiler.prototype = {
+	debugATN:function(){
+		this.atn.states.forEach(function(state, index){
+				var s = _.clone(state);
+				delete s.transitions;
+				console.log('state[%d]= %s', index, s.type);
+				var str = '';
+				_.each(s, function(v, f){
+						str += f + ':'+ (typeof(v) == 'function'? '<f>' : v );
+						str += ', ';
+				});
+				console.log('\t%s', str);
+		});
+		
+		this.atn.decisionToState.forEach(function(ds, index){
+				console.log('decisionToState[%d] = %s', index, ds);
+		}, this);
+	},
 	
 	compile:function(text){
 		var parser = grmParser.create(text);
 		var ast = parser.parse().result;
+		
+		
+		// fetch out all lexer rules: this.lexRuleASTs
 		ast.forEach(function(ruleAst){
 			if(ruleAst.type == 'lexRule'){
 				this.lexRuleASTMap[ruleAst.name] = ruleAst;
 				this.lexRuleASTs.push(ruleAst);
 				if(!ruleAst.fragment){
-					console.log(ruleAst.name);
+					console.log('find lex rule: %s', ruleAst.name);
 				}
-				
 			}
 		}, this);
-		this._createATN();
-		optimizeATN(this.atn);//todo
+		// CREATE ATN FOR EACH RULE
+		this.createATN();
+		
+		
 	},
 	
-	_createATN:function(){
-		this.createRuleStartAndStopATNStates();
+	createATN:function(){
+		// BUILD ALL START STATES (ONE PER MODE)
+		// since I don't want to support MODE at this moment, there is only 1 start state needed
+		this.atn.startState = this.newState('tokensStart');
+		// INIT ACTION, RULE->TOKEN_TYPE MAP
+		// CREATE ATN FOR EACH RULE
+		this._createATN(this.lexRuleASTs);
+		// atn.lexerActions = new LexerAction[indexToActionMap.size()];
+		// for (Map.Entry<Integer, LexerAction> entry : indexToActionMap.entrySet()) {
+		// 	atn.lexerActions[entry.getKey()] = entry.getValue();
+		// }
+		// LINK MODE START STATE TO EACH TOKEN RULE
 		this.lexRuleASTs.forEach(function(ruleAST){
+				if(!ruleAST.fragment){
+					var s = this.atn.ruleToStartState[ruleAST.name];
+					this._epsilon(this.atn.startState, s);
+				}
+		}, this);
+		optimizeATN(this.atn);
+		return this.atn;
+	},
+	
+	_createATN:function(rules){
+		this.createRuleStartAndStopATNStates();
+		rules.forEach(function(ruleAST){
 				this.currentRuleName = ruleAST.name;
-				buildLexerATN(ruleAST);
+				var block = AST.getFirstChildWithType(ruleAST, 'alts');
+				this.buildLexerATN(block);
 		}, this);
 	},
+	
+	_epsilon:function(a, b, prepend){
+		if( a!=null ) {
+			if(prepend)
+				a.addTransition(0, {type:'epsilon', target: b});
+			else
+				a.addTransition({type:'epsilon', target: b});
+		}
+	},
+	
 	createRuleStartAndStopATNStates:function(){
 		this.atn.ruleToStartState = {};
 		this.atn.ruleToStopState = {};
@@ -82,7 +167,7 @@ Compiler.prototype = {
 		}, this);
 	},
 	/**
-	@param type: basic, ruleStart, basicBlockStart, blockEnd, starLoopback. plusLoopback
+	@param type: basic, ruleStart, basicBlockStart, blockEnd, starLoopback. plusLoopback, tokensStart
 	*/
 	newState:function(type){
 		var n = new ATNState(type);
@@ -93,18 +178,7 @@ Compiler.prototype = {
 	/* newTransition:funciton(type, targetState){
 		return { type: type, target: targetState };
 	} */
-	EPSILON_TYPES: {
-		epsilon: true, range: false, rule: true, predicate: true, action: true,
-		precedence: true, wildcard:false, notSet: false, set: false, atom: false
-	},
 	
-	_isEpsilon: function(transition){
-		var yes = this.EPSILON_TYPES[transition.type];
-		if(yes === undefined){
-			throw new Error('undefined transition type: '+ transition.type);
-		}
-		return this.EPSILON_TYPES[transition.type];
-	},
 	/**
 	transition's properties:
 	{
@@ -113,8 +187,9 @@ Compiler.prototype = {
 		state - the next state
 	}
 	*/
-	buildLexerATN:function(ast, state){
+	buildLexerATN:function(ast, /** useless */state){
 		if(typeof(ast) === 'string'){//stringlit
+			ast = getStringFromGrammarStringLiteral(ast);
 			var left = this.newState('basic');
 			var prev = left;
 			var right;
@@ -127,20 +202,40 @@ Compiler.prototype = {
 		}
 		switch(ast.type){
 			case 'range':
-				var left = this.newState('basic', ast);
-				var right = this.newState('basic', ast);
-				left.addTransition({type:'range', target: right, from: ast.from, to: ast.to});
+				//LexerATNFactory::range()
+				var from = getStringFromGrammarStringLiteral(ast.from),
+					to = getStringFromGrammarStringLiteral(ast.to);
+				
+				var left = this.newState('basic', from);
+				var right = this.newState('basic', to);
+				left.addTransition({type:'range', target: right, from: from, to: to});
 				return {left:left, right:right};
 			case 'not':
 				var setAST = ast.child[0];
-				var alts = setAST.child;
+				var alts = [];
+				setAST.child.forEach(function(setElementAST){
+						//alts.add($setElement.start);
+						alts.push(AST.getStartNode(setElementAST));
+				}, this);
 				//for lexer only, parser is different
+				//Java: factory.set($start, alts, $invert);
 				return this._lexerSet(setAST, alts, true);
 			case 'wildcard':
 				var left = this.newState('basic', ast);
 				var right = this.newState('basic', ast);
 				left.addTransition({type:'wildcard', target:right});
 				return {left:left, right:right};
+			case 'alt':
+				if(ast.child.length == 0){
+					//epsilon
+					var left = this.newState('basic', ast);
+					var right = this.newState('basic', ast);
+					left.addTransition({type:'epsilon', target: right});
+					return {left:left, right:right};
+				}else{
+					var els = this.buildLexerATN_child(ast);
+					return this._elemList(els);
+				}
 			case 'alts':
 				var alts = this.buildLexerATN_child(ast, state);
 				if ( alts.length == 1 ) {
@@ -156,6 +251,7 @@ Compiler.prototype = {
 				var star = this.newState('starBlockStart', ast);
 				if ( alts.length >1 ) this.atn.defineDecisionState(star);
 				var h = this._makeBlock(star, ast.child[0], alts);
+				debugger;
 				return this._star(ast, h);
 				
 			case '+':
@@ -203,7 +299,7 @@ Compiler.prototype = {
 		return list;
 	},
 	_makeBlock:function(start, altsAST, alts){
-		var end = this.newState('blockEnd', ast);
+		var end = this.newState('blockEnd', altsAST);
 		start.endState = end;
 		alts.forEach(function(alt){
 				start.addTransition({type:'epsilon', target: alt.left});
@@ -274,7 +370,7 @@ Compiler.prototype = {
 		entry.loopBackState = loop;
 		end.loopBackState = loop;
 		
-		var blkAST = startAST.child[0];
+		var blkAST = starAST.child[0];
 		//if ( ((QuantifierAST)starAST).isGreedy() ) {
 		if(true /* greedy */){
 			if (this.expectNonGreedy(blkAST)) {
@@ -341,7 +437,62 @@ Compiler.prototype = {
 	_lexerSet:function(associatedAST, alts, invert){
 		var left = this.newState('basic', associatedAST);
 		var right = this.newState('basic', associatedAST);
-		//todo
+		var set = new IntervalSet();
+		alts.forEach(function(t){
+			if(t.type === 'range'){
+				set.add(getStringFromGrammarStringLiteral(t.from), 
+					getStringFromGrammarStringLiteral(t.to));
+			}else if(t.type === 'lexer_char_set'){
+				set.addAll(getSetFromCharSetLiteral(t));
+			}else if(typeof(t) === 'string'){
+				var esc = getStringFromGrammarStringLiteral(t);
+				if(esc.length === 1)
+					set.add(esc);
+				else
+					throw new Error("Lexer doesn't support string which contains more than 1 character in a \"(NOT) SET\" sub rule, "+
+						' "'+ t +
+						'" at rule: '+ this.currentRuleName);
+			}else if(t.type === 'tokenRef'){
+				throw new Error("Lexer doesn't support TOKEN REFERENCE in a \"(NOT) SET\" sub rule," +
+					' at rule: '+ this.currentRuleName);
+			}
+		}, this);
+		if(invert)
+			left.addTransition({type:'notSet', target:right, set:set});
+		else{
+			//todo only for "set", current "not set" does not go through this logic
+		}
+		return {left: left, right: right};
+	},
+	
+	getSetFromCharSetLiteral:function(){
+		//todo for lexer_char_set
+	},
+	
+	_elemList:function(els){
+		var n = els.length;
+		for (var i = 0; i < n - 1; i++) {
+			var el = els[i];
+			var tr = null;
+			if ( el.left.transitions.length ==1 ) tr = el.left.transitions[0];
+			var isRuleTrans = tr.type == 'rule';
+			if(el.left.type === 'basic' && el.right.type === 'basic' &&
+				tr != null && (isRuleTrans && tr.followState === el.right || tr.target === el.right))
+			{
+				if ( isRuleTrans ) tr.followState = els[i+1].left;
+				else tr.target = els[i+1].left;
+				this.atn.removeState(el.right);
+			}else{
+				//epsilon(el.right, els.get(i+1).left);
+				if(el.right != null)
+					el.right.addTransition({type:'epsilon', target: els[i+1].left});
+			}
+		}
+		var first = els[0];
+		var last = els[n - 1];
+		if ( first==null || last==null ) 
+			throw new Error("element list has first|last == null");
+		return {left:first.left, right: last.right};
 	},
 	
 	 expectNonGreedy:function(blkAST){
@@ -420,7 +571,7 @@ _.extend(TailEpsilonRemover.prototype, ATNVisitor, {
 				// if edge out of q is single epsilon to block end
 				// we can strip epsilon p-x->q-eps->r
 				var trans = q.transitions[0];
-				if(q.transitions.length == 1 && this._isEpsilon(trans) && ! trans.type == 'action'){
+				if(q.transitions.length == 1 && isEpsilon(trans) && ! trans.type == 'action'){
 					var r = trans.target;
 					if (r.type == 'blockEnd' || r.type == 'plusLoopBack' ||
 						r.type == "starLoopback")
@@ -447,13 +598,13 @@ var _optTrans = { atom: true, range: true, set:true};
 function _optimizeSets(atn){
 	var removedStates = 0;
 	var decisions = atn.decisionToState;
-	decisions.forEach(function(decision){
+	_.each(decisions, function(decision){
 		if(decision.ruleName && decision.ruleName.charAt(0).match(/[a-z]/))
 			return;
 		var setTransitions = new IntervalSet();
 		for (var i = 0, l = decision.transitions.length; i<l; i++) {
 			var epsTransition = decision.transitions[i];
-			if(espTransition.type === 'epsilon' || epsTransition.target.transitions.length != 1)
+			if(epsTransition.type === 'epsilon' || epsTransition.target.transitions.length != 1)
 				continue;
 			var transition = epsTransition.target.transition[0];
 			if (!(transition.target.type === 'blockEndState'))
@@ -531,4 +682,92 @@ ATNBuilder.prototype = {
 		
 	}
 };
-module.exports = compile;
+
+function getStringFromGrammarStringLiteral(literal){
+	var buf = '';
+	var i = 1; // skip first quote
+	var n = literal.length -1; //  skip last quote
+	while ( i < n ) { // scan all but last quote
+		var end = i+1;
+		if ( literal.charAt(i) == '\\' ) {
+			end = i+2;
+			if ( (i+1)>=n ) break; // ignore spurious \ on end
+			if ( literal.charAt(i+1) == 'u' ) end = i+6;
+		}
+		if ( end>n ) break;
+		var esc = literal.substring(i, end);
+		debugger;
+		var c = getCharValueFromCharInGrammarLiteral(esc);
+		if ( c == -1 ) { buf += esc; }
+		else buf += c;
+		i = end;
+	}
+	return buf;
+}
+
+var ANTLRLiteralEscapedCharValue = {
+	'n': '\n',
+	'r': '\r',
+	't': '\t',
+	'b': '\b',
+	'f': '\f',
+	'\\': '\\',
+	'\'': '\'',
+	'"': '"',
+	'\n': "\\n" ,
+	'\r': "\\r" ,
+	'\t': "\\t" ,
+	'\b': "\\b" ,
+	'\f': "\\f" ,
+	'\\': "\\\\",
+	'\'': "\\'"
+};
+
+function getCharValueFromCharInGrammarLiteral(cstr){
+	switch ( cstr.length ) {
+		case 1 :
+			// 'x'
+			return cstr.charAt(0); // no escape char
+		case 2 :
+			if ( cstr.charAt(0)!='\\' ) return -1;
+			// '\x'  (antlr lexer will catch invalid char)
+			if ( cstr.charAt(1) >= '0' &&  cstr.charAt(1) <= '9' ) return -1;
+			var escChar = cstr.charAt(1);
+			var charVal = ANTLRLiteralEscapedCharValue[escChar];
+			if ( charVal == null ) return -1;
+			return charVal;
+		case 6 :
+			// '\u1234'
+			if ( cstr.substring(0, 2) != "\\u" ) return -1;
+			var unicodeChars = cstr.substring(2);
+			return String.fromCharCode(parseInt(unicodeChars, 16));
+		default :
+			return -1;
+	}
+}
+Compiler.getStringFromGrammarStringLiteral = getStringFromGrammarStringLiteral;
+
+function LeftRecursionDetector(ast, atn){
+	this.g = ast;
+	this.atn = atn;
+	this.listOfRecursiveCycles = [];
+	this.rulesVisitedPerRuleCheck = {};
+}
+
+LeftRecursionDetector.prototype = {
+	check:function(){
+		_.each(this.atn.ruleToStartState, function(start, ruleName){
+			//System.out.print("check "+start.rule.name);
+			this.rulesVisitedPerRuleCheck.splice(0, this.rulesVisitedPerRuleCheck.length);
+			this.rulesVisitedPerRuleCheck.push(start);
+			//FASerializer ser = new FASerializer(atn.g, start);
+			//System.out.print(":\n"+ser+"\n");
+
+			this.check(this.g.getRule(start.ruleIndex), start, {});
+		}, this);
+		//System.out.println("cycles="+listOfRecursiveCycles);
+		if ( !listOfRecursiveCycles.isEmpty() ) {
+			g.tool.errMgr.leftRecursionCycles(g.fileName, listOfRecursiveCycles);
+		}
+	}
+};

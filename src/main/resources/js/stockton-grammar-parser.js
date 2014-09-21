@@ -288,7 +288,7 @@ var grammar = {
         var choice = this.rule('alts').result;
         this.match(';');
         var chr0 = name.charAt(0);
-        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'),fragment: fragment, name: name, child: choice};
+        return { type: ((chr0 >= 'A' && chr0 <= 'Z')? 'lexRule':'parserRule'),fragment: fragment, name: name, child: [choice]};
     },
     
     alts:function(){
@@ -379,7 +379,7 @@ var grammar = {
     		return {
 			type:bnf.text(),
 			pos: bnf.position2str(),
-			child: content.type ==='alts'? content : {type:'alts', child:[ content ]}
+			child: [content.type ==='alts'? content : {type:'alts', child:[ content ]}]
 		};
 	},
     /**
@@ -439,8 +439,8 @@ var grammar = {
     
     range:function(){
     		var f = this.advance();
+    		this.match('..');
     		var t = this.advance();
-    		this.match('stringLit');
     		return { type:'range', from:f.text(), to:t.text()};
     },
 
