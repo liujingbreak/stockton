@@ -109,7 +109,8 @@ Compiler.prototype = {
 		// CREATE ATN FOR EACH RULE
 		this.createATN();
 		
-		
+		// PERFORM GRAMMAR ANALYSIS ON ATN: BUILD DECISION DFAs
+		this.analysisPipeline_process();
 	},
 	
 	createATN:function(){
@@ -465,8 +466,20 @@ Compiler.prototype = {
 		return {left: left, right: right};
 	},
 	
-	getSetFromCharSetLiteral:function(){
-		//todo for lexer_char_set
+	analysisPipeline:function(ast){
+		var lr = new LeftRecursionDetector(ast, this.atn, this);
+		lr.check();
+		if ( lr.listOfRecursiveCycles.length > 0 ) return;
+		this.analysis_processLexer();
+		//processParser(); todo
+	},
+	
+	analysis_processLexer:function(){
+		this.lexRuleASTs.forEach(function(ast){
+				if(ast.fragment)
+					return;
+				//todo
+		}, this);
 	},
 	
 	_elemList:function(els){
@@ -747,15 +760,18 @@ function getCharValueFromCharInGrammarLiteral(cstr){
 }
 Compiler.getStringFromGrammarStringLiteral = getStringFromGrammarStringLiteral;
 
-function LeftRecursionDetector(ast, atn){
+function LeftRecursionDetector(ast, atn, compiler){
 	this.g = ast;
 	this.atn = atn;
+	this.compiler = compiler;
 	this.listOfRecursiveCycles = [];
 	this.rulesVisitedPerRuleCheck = {};
 }
 
 LeftRecursionDetector.prototype = {
 	check:function(){
+		if(arguments.length > 0)
+			return this._check.apply(this, arguments);
 		_.each(this.atn.ruleToStartState, function(start, ruleName){
 			//System.out.print("check "+start.rule.name);
 			this.rulesVisitedPerRuleCheck.splice(0, this.rulesVisitedPerRuleCheck.length);
@@ -763,11 +779,67 @@ LeftRecursionDetector.prototype = {
 			//FASerializer ser = new FASerializer(atn.g, start);
 			//System.out.print(":\n"+ser+"\n");
 
-			this.check(this.g.getRule(start.ruleIndex), start, {});
+			this._check(ruleName, start, {});
 		}, this);
 		//System.out.println("cycles="+listOfRecursiveCycles);
-		if ( !listOfRecursiveCycles.isEmpty() ) {
-			g.tool.errMgr.leftRecursionCycles(g.fileName, listOfRecursiveCycles);
+		if ( ! _.isEmpty(this.listOfRecursiveCycles) ) {
+			throw new Error('Left recursive cycles are encounted: ' + listOfRecursiveCycles);
+		}
+	},
+	
+	_check:function(enclosingRuleName, s, visitedStates){
+		if(s.type === 'ruleStop') return true;
+		if(visitedStates[s.stateNumber])
+			return false;
+		var stateReachesStopState = false;
+		for (var i=0; i<n; i++) {
+			var t = s.transitions[i];
+			if ( t.type === 'rule' ) {
+				var rt = t;
+				var r = rt.ruleName;
+				if ( this.rulesVisitedPerRuleCheck[t.target.stateNumber] ) {
+					this.addRulesToCycle(enclosingRuleName, r);
+				}
+				else {
+					// must visit if not already visited; mark target, pop when done
+					this.rulesVisitedPerRuleCheck[t.target.stateNumber] = true;
+					// send new visitedStates set per rule invocation
+					var nullable = this._check(r, t.target, {});
+					// we're back from visiting that rule
+					delete this.rulesVisitedPerRuleCheck[t.target.stateNumber];
+					if ( nullable ) {
+						stateReachesStopState |= this._check(enclosingRuleName, rt.followState, visitedStates);
+					}
+				}
+			}
+			else if ( isEpsilon(t) ) {
+				stateReachesStopState |= this._check(enclosingRuleName, t.target, visitedStates);
+			}
+			// else ignore non-epsilon transitions
+		}
+		return stateReachesStopState;
+	},
+	
+	addRulesToCycle:function(enclosingRuleName, targetRuleName){
+		console.log("left-recursion to "+targetRuleName+" from "+enclosingRuleName);
+		var foundCycle = false;
+		_.each(this.listOfRecursiveCycles, function(rulesInCycle){
+			// ensure both rules are in same cycle
+			if (rulesInCycle[targetRuleName]) {
+				rulesInCycle[enclosingRuleName] = true;
+				foundCycle = true;
+			}
+			if (rulesInCycle[enclosingRuleName]) {
+				rulesInCycle[targetRuleName] = true;
+				foundCycle = true;
+			}
+		}, this);
+		if ( !foundCycle ) {
+			var cycle = {};
+			cycle[targetRuleName] = true;
+			cycle[enclosingRuleName] = true;
+			this.listOfRecursiveCycles.push(cycle);
 		}
 	}
 };
+
