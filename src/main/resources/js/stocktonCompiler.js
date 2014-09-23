@@ -4,7 +4,7 @@ var grmParser = require('./stockton-grammar-parser.js'),
 	RangeUtil = stUtil.RangeUtil,
 	IntervalSet = require('./misc.js').IntervalSet,
 	Interval = require('./misc.js').Interval;
-
+	debugATN = require('./debugATN.js');
 
 function compile(text){
 	return new Compiler().compile(text);
@@ -110,7 +110,7 @@ Compiler.prototype = {
 		this.createATN();
 		
 		// PERFORM GRAMMAR ANALYSIS ON ATN: BUILD DECISION DFAs
-		this.analysisPipeline_process();
+		this.analysisPipeline();
 	},
 	
 	createATN:function(){
@@ -774,8 +774,8 @@ LeftRecursionDetector.prototype = {
 			return this._check.apply(this, arguments);
 		_.each(this.atn.ruleToStartState, function(start, ruleName){
 			//System.out.print("check "+start.rule.name);
-			this.rulesVisitedPerRuleCheck.splice(0, this.rulesVisitedPerRuleCheck.length);
-			this.rulesVisitedPerRuleCheck.push(start);
+			this.rulesVisitedPerRuleCheck = {};
+			this.rulesVisitedPerRuleCheck[start.stateNumber] = true;
 			//FASerializer ser = new FASerializer(atn.g, start);
 			//System.out.print(":\n"+ser+"\n");
 
@@ -791,6 +791,8 @@ LeftRecursionDetector.prototype = {
 		if(s.type === 'ruleStop') return true;
 		if(visitedStates[s.stateNumber])
 			return false;
+		visitedStates[s.stateNumber] = true;
+		var n = s.transitions.length;
 		var stateReachesStopState = false;
 		for (var i=0; i<n; i++) {
 			var t = s.transitions[i];
