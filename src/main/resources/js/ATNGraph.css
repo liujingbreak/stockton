@@ -1,0 +1,30 @@
+body{
+	height: 100%;
+	margin:0;
+	padding:16px;	
+}
+
+svg text {
+	stroke:#202070;
+	text-anchor:middle;
+	font-size: 12px;
+}
+svg text.type{
+	stroke:blue;
+}
+
+svg .drawed{
+	fill:#2daebb;
+}
+
+svg circle{
+	fill: transparent;
+}
+
+svg .transition{
+	stroke: #202020;
+	stroke-width: 1px;
+	fill:transparent;
+}
+stop.end { stop-color:green; }
+

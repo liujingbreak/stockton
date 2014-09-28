@@ -1,10 +1,10 @@
 var grmParser = require('./stockton-grammar-parser.js'),
-	_ = require("./underscore-min.js"),
+	_ = require("./lodash.js"),
 	stUtil = require('./stockton-util.js'),
 	RangeUtil = stUtil.RangeUtil,
 	IntervalSet = require('./misc.js').IntervalSet,
 	Interval = require('./misc.js').Interval;
-	debugATN = require('./debugATN.js');
+	
 
 function compile(text){
 	return new Compiler().compile(text);
@@ -140,7 +140,12 @@ Compiler.prototype = {
 		rules.forEach(function(ruleAST){
 				this.currentRuleName = ruleAST.name;
 				var block = AST.getFirstChildWithType(ruleAST, 'alts');
-				this.buildLexerATN(block);
+				var h = this.buildLexerATN(block);
+				var start = this.atn.ruleToStartState[ruleAST.name];
+				this._epsilon(start, h.left);
+				var stop = this.atn.ruleToStopState[ruleAST.name];
+				this._epsilon(h.right, stop);
+				
 		}, this);
 	},
 	
@@ -164,7 +169,7 @@ Compiler.prototype = {
 				start.ruleName = ruleAST.name;
 				stop.ruleName = ruleAST.name;
 				this.atn.ruleToStartState[ruleAST.name] = start;
-				this.atn.ruleToStopState[ruleAST.name] = start;
+				this.atn.ruleToStopState[ruleAST.name] = stop;
 		}, this);
 	},
 	/**
@@ -478,8 +483,21 @@ Compiler.prototype = {
 		this.lexRuleASTs.forEach(function(ast){
 				if(ast.fragment)
 					return;
+				var look = this.LL1Analyzer(this.atn.ruleToStartState[ast.name], null, null);
 				//todo
 		}, this);
+	},
+	
+	LL1Analyzer:function(s, stopState, ctx){
+		var r = new IntervalSet();
+		var seeThruPreds = true; // ignore preds; get all lookahead
+		//todo
+	},
+	
+	LL1Analyzer_look:function(s, stopState, ctx, look, lookBusy, calledRuleStack,
+		seeThruPreds, addEOF)
+	{
+		
 	},
 	
 	_elemList:function(els){
