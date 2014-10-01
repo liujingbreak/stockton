@@ -18,7 +18,7 @@ OrderedHashSet.prototype={
 		}
 	},
 	contains:function(e){
-		return uuid(e) in this.map;
+		return this.map.hasOwnProperty(uuid(e));
 	},
 	size:function(){
 		return this._size;
@@ -37,7 +37,7 @@ OrderedHashMap.prototype={
 		return this.map[uuid(key)];
 	},
 	containsKey:function(k){
-		return uuid(key) in this.map;
+		return this.map.hasOwnProperty(uuid(key));
 	},
 	put:function(key, value) {
 		var k = uuid(key);

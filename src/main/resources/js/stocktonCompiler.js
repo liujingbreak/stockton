@@ -37,7 +37,7 @@ function Compiler(){
 	//LexerATNFactory.atn
 	this.atn = {
 		startState: null,
-		states : [],
+		states: [],
 		ruleToStartState: null,
 		ruleToStopState: null,
 		decisionToState:[],
@@ -57,7 +57,6 @@ function Compiler(){
 		}
 	};
 }
-module.exports = Compiler;
 
 var EPSILON_TYPES = {
 	epsilon: true, range: false, rule: true, predicate: true, action: true,
@@ -71,6 +70,21 @@ function isEpsilon(transition){
 		}
 		return EPSILON_TYPES[transition.type];
 }
+
+var Transition = {
+	label:function(tran){
+		switch(tran.type){
+		case 'atom':
+			return IntervalSet.of(tran.label);
+		case 'range':
+			return IntervalSet.of(tran.from, tran.to);
+		case 'set':
+			return tran.set;
+		default:
+			return null;
+		}
+	}
+};
 
 Compiler.prototype = {
 	debugATN:function(){
@@ -257,7 +271,6 @@ Compiler.prototype = {
 				var star = this.newState('starBlockStart', ast);
 				if ( alts.length >1 ) this.atn.defineDecisionState(star);
 				var h = this._makeBlock(star, ast.child[0], alts);
-				debugger;
 				return this._star(ast, h);
 				
 			case '+':
@@ -488,18 +501,6 @@ Compiler.prototype = {
 		}, this);
 	},
 	
-	LL1Analyzer:function(s, stopState, ctx){
-		var r = new IntervalSet();
-		var seeThruPreds = true; // ignore preds; get all lookahead
-		//todo
-	},
-	
-	LL1Analyzer_look:function(s, stopState, ctx, look, lookBusy, calledRuleStack,
-		seeThruPreds, addEOF)
-	{
-		
-	},
-	
 	_elemList:function(els){
 		var n = els.length;
 		for (var i = 0; i < n - 1; i++) {
@@ -526,26 +527,80 @@ Compiler.prototype = {
 		return {left:first.left, right: last.right};
 	},
 	
-	 expectNonGreedy:function(blkAST){
-	 	if ( this.blockHasWildcardAlt(blkAST) ) {
+	expectNonGreedy:function(blkAST){
+		if ( this.blockHasWildcardAlt(blkAST) ) {
 			return true;
 		}
 
 		return false;
-	 },
-	 
-	 blockHasWildcardAlt:function(block){
-	 	 var ret = block.child.some(function(alt){
-	 	 		 if(alt.type != 'alt') return false;
-	 	 		 if(alt.child.length == 1){
-	 	 		 	 var e = alt.child[0];
-	 	 		 	 if(e.type === 'wildcard')
-	 	 		 	 	 return true;
-	 	 		 }
-	 	 		 return false;
-	 	 });
-	 	 return ret;
-	 }
+	},
+	
+	blockHasWildcardAlt:function(block){
+		 var ret = block.child.some(function(alt){
+		 		 if(alt.type != 'alt') return false;
+		 		 if(alt.child.length == 1){
+		 		 	 var e = alt.child[0];
+		 		 	 if(e.type === 'wildcard')
+		 		 	 	 return true;
+		 		 }
+		 		 return false;
+		 });
+		 return ret;
+	},
+	 	
+	LL1Analyzer:function(s, stopState, ctx){
+		var r = new IntervalSet();
+		var seeThruPreds = true; // ignore preds; get all lookahead
+		var lookContext = ctx != null ? PredictionContext.fromRuleContext(s.atn, ctx) : null;
+		this.LL1Analyzer_look(s, stopState, lookContext, r, {}, {}, seeThruPreds, true);
+		return r;
+	},
+	
+	LL1Analyzer_look:function(s, stopState, ctx, look, lookBusy, calledRuleStack,
+		seeThruPreds, addEOF)
+	{
+		var c = new ATNConfig(s, 0, ctx);
+		if(lookBusy.hasOwnProperty(c))
+			return;
+		lookBusy[c] = true;
+		if (s == stopState) {
+			if (ctx == null) {
+				look.add(-2);
+				return;
+			} else if (ctx.isEmpty() && addEOF) {
+				look.add(-1);
+				return;
+			}
+		}
+		if(s.type == 'ruleStop'){
+			if ( ctx==null ) {
+                look.add(-2);
+                return;
+            } else if (ctx.isEmpty() && addEOF) {
+				look.add(-1);
+				return;
+			}
+			
+			if ( ctx != PredictionContext.EMPTY ) {
+				// run thru all possible stack tops in ctx
+				for (var i = 0; i < ctx.size(); i++) {
+					var returnState = this.atn.states[ctx.getReturnState(i)];
+
+					var removed = _.has(calledRuleStack, returnState.ruleName);
+					try {
+						delete calledRuleStack[returnState.ruleName];
+						this.LL1Analyzer_look(returnState, stopState, ctx.getParent(i), look, lookBusy, calledRuleStack, seeThruPreds, addEOF);
+					}
+					finally {
+						if (removed) {
+							calledRuleStack[returnState.ruleName] = true;
+						}
+					}
+				}
+				return;
+			}
+		}
+	}
 }
 function ATNState(type){
 	this.type = type;
@@ -642,7 +697,7 @@ function _optimizeSets(atn){
 				continue;
 			if(transition.type === 'notSet')
 				continue;
-			if(transition.type in _optTrans)
+			if( _.has(_optTrans, transition.type))
 				setTransitions.add(i);
 		}
 		
@@ -657,7 +712,7 @@ function _optimizeSets(atn){
 				if (matchTransition.type === 'notSet') {
 					throw new Error("Not yet implemented.");
 				} else {
-					matchSet.addAll(matchTransition.label());
+					matchSet.addAll(Transition.label(matchTransition));
 				}
 			}
 			
@@ -727,7 +782,6 @@ function getStringFromGrammarStringLiteral(literal){
 		}
 		if ( end>n ) break;
 		var esc = literal.substring(i, end);
-		debugger;
 		var c = getCharValueFromCharInGrammarLiteral(esc);
 		if ( c == -1 ) { buf += esc; }
 		else buf += c;
@@ -845,11 +899,11 @@ LeftRecursionDetector.prototype = {
 		var foundCycle = false;
 		_.each(this.listOfRecursiveCycles, function(rulesInCycle){
 			// ensure both rules are in same cycle
-			if (rulesInCycle[targetRuleName]) {
+			if (_.has(rulesInCycle, targetRuleName)) {
 				rulesInCycle[enclosingRuleName] = true;
 				foundCycle = true;
 			}
-			if (rulesInCycle[enclosingRuleName]) {
+			if (_.has(rulesInCycle, enclosingRuleName)) {
 				rulesInCycle[targetRuleName] = true;
 				foundCycle = true;
 			}
@@ -863,3 +917,95 @@ LeftRecursionDetector.prototype = {
 	}
 };
 
+function PredictionContext(cachedHashCode){
+	this.cachedHashCode = cachedHashCode;
+}
+
+PredictionContext.fromRuleContext = function(atn, outerContext){
+	if(outerContext == null)
+		outerContext = 'EMPTY';
+	if(outerContext.parent==null || outerContext == 'EMPTY')
+		return 'EMPTY';
+	var parent = PredictionContext.fromRuleContext(atn, outerContext.parent);
+	var state = atn.states[outerContext.invokingState];
+	var transition = state.transitions[0];
+	return new SingletonPredictionContext(parent, transition.followState.stateNumber);
+}
+
+PredictionContext.prototype = {
+	EMPTY_RETURN_STATE: Number.MAX_VALUE,
+
+	isEmpty:function(){
+		return this == PredictionContext.EMPTY;
+	},
+	toString:function(){
+		return this.cachedHashCode;
+	},
+	calculateHashCode:function(parent, returnState){
+		return JSON.stringify({
+			p:parent.toString(),
+			r:returnState
+		});
+	},
+	calculateEmptyHashCode:function(){
+		return '';
+	}
+};
+
+function SingletonPredictionContext(parent, returnState){
+	PredictionContext.call(this, 
+		parent != null? this.calculateHashCode(parent, returnState) : this.calculateEmptyHashCode());
+	if(returnState == -1) throw new Error('Invalid state number');
+	this.parent = parent;
+	this.returnState = returnState;
+}
+SingletonPredictionContext.prototype = _.create(PredictionContext.prototype, {
+
+	size:function(){
+		return 1;
+	},
+	getReturnState:function(){
+		return this.returnState;
+	},
+	getParent:function(index){
+		return this.parent;
+	}
+});
+
+function EmptyPredictionContext(){
+	SingletonPredictionContext.call(this, null, this.EMPTY_RETURN_STATE);
+}
+EmptyPredictionContext.prototype = _.create(SingletonPredictionContext.prototype,{
+		isEmpty:function(){ return true; },
+		size:function() {
+			return 1;
+		},
+		getReturnState:function(index){
+			this.returnState;
+		}
+});
+PredictionContext.EMPTY = new EmptyPredictionContext();
+	
+function ATNConfig(state, alt, context, semanticContext){
+	if(semanticContext === undefined)
+		this.semanticContext = '';
+	this.state = state;
+	this.alt = alt;
+	this.context = context;
+	this._key = JSON.stringify({
+			s:this.state,
+			a:this.alt,
+			c:this.context,
+			s:this.semanticContext
+	});
+}
+ATNConfig.prototype.toString = function(){
+	return this._key;
+}
+
+module.exports = {
+	Compiler: Compiler,
+	PredictionContext: PredictionContext,
+	SingletonPredictionContext: SingletonPredictionContext,
+	EmptyPredictionContext: EmptyPredictionContext
+};

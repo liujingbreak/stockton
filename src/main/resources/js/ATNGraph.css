@@ -1,7 +1,15 @@
 body{
 	height: 100%;
 	margin:0;
-	padding:16px;	
+	padding:16px;
+	background: #e0e0e0;
+}
+
+svg{
+	overflow: auto;
+	width:100%;
+	/* background: #e0e0e0; */
+	height: 3000px;
 }
 
 svg text {
@@ -9,16 +17,24 @@ svg text {
 	text-anchor:middle;
 	font-size: 12px;
 }
+text.tran{
+	stroke: #194646;
+}
+
 svg text.type{
-	stroke:blue;
+	stroke:#604b8a;
 }
 
 svg .drawed{
 	fill:#2daebb;
+	stroke-width: 0;
 }
 
-svg circle{
+circle{
 	fill: transparent;
+}
+circle.decision-state{
+	stroke: blue;
 }
 
 svg .transition{

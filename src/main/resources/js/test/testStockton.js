@@ -1,9 +1,12 @@
 var LL = require('../stockton-grammar-parser.js')
 	, util = require('util')
-    ,fs = require('fs'),
-    Compiler = require('../stocktonCompiler'),
-    datn = require('../debugATN.js');
-    
+	,fs = require('fs'),
+	sc = require('../stocktonCompiler'),
+	datn = require('../debugATN.js'),
+	Compiler = sc.Compiler,
+	PredictionContext  = sc.PredictionContext;
+
+
 var str = fs.readFileSync('./stockton-grammar.g', {encoding: 'utf-8'});
 var parser = LL.create(str);
 parser.verbose();
@@ -21,3 +24,7 @@ compiler.compile(str);
 compiler.debugATN();
 
 datn.debugATN(compiler);
+
+debugger;
+console.log('EmptyPredictionContext %j ', PredictionContext.EMPTY);
+
