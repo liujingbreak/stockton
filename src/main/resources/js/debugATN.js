@@ -5,9 +5,10 @@ var fname = 'ATNGraph.html';
 var row = 0;
 var drawedStates = {};
 var decisionStateSet = {};
+var notDrawedStates = {}; 
 
-function debugATN(compiler){
-	_.each(compiler.atn.decisionToState, function(s){
+function debugATN(atn){
+	_.each(atn.decisionToState, function(s){
 		decisionStateSet[s.stateNumber] = true;
 	});
 	
@@ -19,8 +20,22 @@ function debugATN(compiler){
      '<defs></defs>\n'+
      '<g transform="translate(10, 30)">\n'
      );
-	var lexStart = compiler.atn.states[0];
+	var lexStart = atn.states[0];
+	_.each(atn.states, function(s){
+			notDrawedStates[s.stateNumber] = s;
+	});
+	
 	drawState(lexStart, 0);
+	//draw fragment rules
+	console.log('fragment rules %j', _.keys(notDrawedStates));
+	while(true){
+		var notDrawedSArr= _.sortBy(_.values(notDrawedStates), 'stateNumber');
+		row++;
+		if(notDrawedSArr.length == 0)
+			break;
+		drawState(notDrawedSArr[0], 0);
+	}
+	
 	fs.appendFileSync(fname, '</g>\n</svg>\n</body></html>');
 }
 
@@ -29,41 +44,41 @@ function debugATN(compiler){
 function drawState(state, col){
 	var r = 30, x = col * 80 + r, y = row * 80 + r;
 	var cCol = col, cRow = row;
-	var drawed = drawedStates[state.stateNumber];
-	//if(drawed){
-	//	line(col, row, drawed[0], drawed[1]);
-	//	//fs.appendFileSync(fname, '<circle id="'+ col + ':' + row +'" class="drawed" cx="'+ x  +'" cy="'+ y +'" r="'+ (r - 1) +'" stroke="black" stroke-width="1"/>\n' + 
-	//	//'<text x="'+ x+'" y="'+ y +'">S: '+ state.stateNumber + '</text>\n');
-	//	return false;
-	//}
-	var circleClass = (state.stateNumber in decisionStateSet)? 'decision-state': '';
+
+	var circleClass = (_.has(decisionStateSet, state.stateNumber))? 'decision-state': '';
 	fs.appendFileSync(fname, '<circle id="'+ col + ':' + row +'" class="'+ circleClass +'" cx="'+ x  +'" cy="'+ y +'" r="'+ (r - 1) +'" stroke="black" stroke-width="1"/>\n' + 
 		'<text x="'+ x+'" y="'+ y +'">S: '+ state.stateNumber + '</text>\n'+ 
 		'<text class="type" x="'+ x+'" y="'+ (y + 13) +'">'+ state.type + '</text>\n');
+	if(state.type === 'ruleStop')
+		fs.appendFileSync(fname, '<circle id="'+ col + ':' + row +'" class="'+ circleClass +'" cx="'+ x  +'" cy="'+ y +'" r="'+ (r - 4) +'" stroke="black" stroke-width="1"/>\n');
 	if((state.type === 'ruleStart' || state.type === 'ruleStop' ) && state.ruleName)
 		fs.appendFileSync(fname, '<text class="name" x="'+ x+'" y="'+ (y - 13) +'">'+ state.ruleName + '</text>\n');
+	
 	//console.log('state %s: transition num: %d', state.stateNumber, state.transitions.length);
 	drawedStates[state.stateNumber] = [col, row];
+	delete notDrawedStates[state.stateNumber];
+	
 	if(state.transitions && state.transitions.length > 0){
 		_.each(state.transitions, function(tran, index){
 				if(index > 0)
 					row ++;
 				var drawed = drawedStates[tran.target.stateNumber];
+				if(tran.type === 'rule'){
+					x = (cCol +1) * 80 + r;
+					y = cRow * 80 + r;
+					fs.appendFileSync(fname, '<circle class="drawed" cx="'+ x  +'" cy="'+ y +'" r="'+ (r - 1) +'" stroke="black" stroke-width="1"/>\n' + 
+						'<text x="'+ x+'" y="'+ y +'">S: '+ tran.target.stateNumber + '</text>\n' +
+						'<text class="type" x="'+ x+'" y="'+ (y + 13) +'">'+ tran.target.type + '</text>\n');
+					line(cCol, cRow, col + 1, row, tran);
+					drawState(tran.followState, col + 2);
+					line(col + 1, cRow, col + 2, cRow);
+					return;
+				}
 				if(!drawed){
 					line(cCol, cRow, col + 1, row, tran);
 					drawState(tran.target, col + 1);
 				}else{
-					if(tran.type === 'rule'){
-						x = (cCol +1) * 80 + r;
-						y = cRow * 80 + r;
-						fs.appendFileSync(fname, '<circle class="drawed" cx="'+ x  +'" cy="'+ y +'" r="'+ (r - 1) +'" stroke="black" stroke-width="1"/>\n' + 
-							'<text x="'+ x+'" y="'+ y +'">S: '+ tran.target.stateNumber + '</text>\n' +
-							'<text class="type" x="'+ x+'" y="'+ (y + 13) +'">'+ tran.target.type + '</text>\n');
-						line(cCol, cRow, col + 1, row, tran);
-						drawState(tran.followState, col + 2);
-						line(col + 1, cRow, col + 2, cRow);
-					}else
-						line(cCol, cRow, drawed[0], drawed[1], tran);
+					line(cCol, cRow, drawed[0], drawed[1], tran);
 				}
 				
 		});
@@ -128,7 +143,7 @@ function line(col0, row0, col1, row1, transition){
 }
 
 function drawTransition(x, y, tran){
-	var type = tran.type === 'epsilon'? '*': tran.type;
+	var type = tran.type === 'epsilon'? 'e': tran.type;
 	var label = null;
 	switch(tran.type){
 	case 'atom':

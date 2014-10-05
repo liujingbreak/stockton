@@ -4,7 +4,9 @@ var LL = require('../stockton-grammar-parser.js')
 	sc = require('../stocktonCompiler'),
 	datn = require('../debugATN.js'),
 	Compiler = sc.Compiler,
-	PredictionContext  = sc.PredictionContext;
+	srt = require('../stocktonRuntime.js'),
+	cycle = require('cycle'),
+	PredictionContext  = srt.PredictionContext;
 
 
 var str = fs.readFileSync('./stockton-grammar.g', {encoding: 'utf-8'});
@@ -20,11 +22,17 @@ var escaped = Compiler.getStringFromGrammarStringLiteral(
 console.log(escaped);
 
 var compiler = new Compiler();
-compiler.compile(str);
-compiler.debugATN();
+var atn = compiler.compile(str);
+//compiler.debugATN();
+console.log('atn: %j', atn);
+datn.debugATN(cycle.retrocycle(atn));
 
-datn.debugATN(compiler);
 
-debugger;
+
+
 console.log('EmptyPredictionContext %j ', PredictionContext.EMPTY);
+console.log('compiler.atn.maxTokenType=%d', compiler.atn.maxTokenType);
+
+
+
 

@@ -4,7 +4,9 @@ var LL = require('./baseLLParser.js'),
 var keywordMap = {
 	'options': 0,
 	'protected': 1,
-	'returns': 2
+	'returns': 2,
+	'fragment': 1,
+	'tokens': 3
 }
 function scanToken(lex){
     var other = false;
@@ -40,8 +42,8 @@ function scanToken(lex){
     case ']':
     case '{':
     case '}':
-    case '(':
-    case ')': case ':': case ';': case '!': case '?': case '+': case '*': case '~': case '@':
+    case '(': case ',':
+    case ')': case ':': case ';': case '!': case '?': case '+': case '*': case '~': case '@' :
     case '|':
         lex.advance();
         lex.emitToken(c);
@@ -183,7 +185,7 @@ function id(lex){
     }, function(){
         text += this.advance();
     });
-    if(text in keywordMap)
+    if(keywordMap.hasOwnProperty(text))
     		lex.emitToken(text);
     	else
     		lex.emitToken('id');
@@ -232,9 +234,27 @@ var grammar = {
 	AST:[],
 	
     root: function(){
+    		if(this.predToken('tokens'))
+    			this.rule('tokenDef');
         this.rule('blockContent', true);
         this.match('EOF');
     },
+    
+    tokenDef:function(){
+    		this.match('tokens');
+    		this.match('{');
+    		var tokens = [];
+    		this.bnfLoop(0, function(){return this.inTokens('id', ',')},
+    			function(){
+    				if(this.predToken('id'))
+    					tokens.push(this.advance().text());
+    				else
+    					this.advance();
+    			});
+    		this.match('}');
+    		return {type:'tokens', child: tokens};
+    },
+    
     blockContent: function(hasRule){
     		var s = [];
         this.bnfLoop(0, function(){ return !this.predToken('}')},

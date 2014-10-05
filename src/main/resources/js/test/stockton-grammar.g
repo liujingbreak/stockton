@@ -1,4 +1,5 @@
 
+
 L: '\n' | '\r';
 
 WS: ' '| '\t';
@@ -17,5 +18,7 @@ options {
             ~('\n'|'\r'|'\uffff')
         )*
     ;
+
+fragment Null: 'null';
 
 Anychar: .;

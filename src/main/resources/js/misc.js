@@ -3,80 +3,6 @@ function uuid(obj){
 	return typeof(obj) == 'string'? obj: (obj._uuid != null? obj._uuid : obj.uuid());
 }
 
-function OrderedHashSet(){
-	this.arr = [];
-	this.map = {};
-	this._size = 0;
-}
-
-OrderedHashSet.prototype={
-	add:function(e){
-		if(!this.contains(e)){
-			this.arr.push(e);
-			this.map[uuid(e)] = e;
-			this._size++;
-		}
-	},
-	contains:function(e){
-		return this.map.hasOwnProperty(uuid(e));
-	},
-	size:function(){
-		return this._size;
-	}
-};
-
-function OrderedHashMap(){
-	this.map = {};
-	this.elements = []; // keys
-	this._size = 0;
-}
-OrderedHashMap.prototype={
-	getKey:function(i){ return this.elements.get(i); },
-	getElement:function(i) { return this.get(this.elements.get(i)); },
-	get:function(key){
-		return this.map[uuid(key)];
-	},
-	containsKey:function(k){
-		return this.map.hasOwnProperty(uuid(key));
-	},
-	put:function(key, value) {
-		var k = uuid(key);
-		var old = this.map[k];
-		this.map[k] = value;
-		if(k in this.map){
-			this.elements.push(key);
-			this._size++;
-		}
-		return old;
-	},
-	putAll:function(m) {
-		for(k in m){
-			this.put(k, m[k]);
-		}
-	},
-	values:function(){
-		var v = [];
-		this.elements.forEach(function(k){
-				v.push(this.get(k));
-		}, this);
-		return v;
-	},
-	size:function(){
-		return this._size;
-	},
-	remove:function(key){
-		delete this.map[uuid(key)];
-		for(var i=0,l=this.elements.length; i<l; i++){
-			if(this.elements[i] == key){
-				this.elements.splice(i,1);
-				break;
-			}
-		}
-		this.size--;
-	}
-};
-exports.OrderedHashMap = exports.LinkedHashMap = OrderedHashMap;
-
 var Utils={
 	capitalize:function(s){
 		return s.charAt(0).toUpperCase() + s.substring(1);
@@ -135,7 +61,9 @@ exports.Graph = (function(){
 			while ( visited.size() < this.nodes.length ) {
 				// pick any unvisited node, n
 				var n = null;
-				for( var id in this.nodes){
+				for( id in this.nodes){
+					if(!this.nodes.hasOwnProperty(id))
+						continue;
 				//for (Iterator it = nodes.values().iterator(); it.hasNext();) {
 					n = this.nodes[id];
 					if ( !visited.contains(n) ) break;
@@ -174,15 +102,17 @@ exports.MultiMap = (function(){
 		},
 		getPairs:function(){
 			var pairs =[];
-			for(var key in this.obj){
-				pairs.push({a:key, b:this.obj[key]});
+			for(key in this.obj){
+				if(this.obj.hasOwnProperty(key))
+					pairs.push({a:key, b:this.obj[key]});
 			}
 			return pairs;
 		},
 		values:function(){
 			var v = [];
-			for(var k in this.obj)
-				v.push(this.obj[k]);
+			for(k in this.obj)
+				if(this.obj.hasOwnProperty(key))
+					v.push(this.obj[k]);
 			return v;
 		},
 		keySet:function(){
@@ -248,6 +178,12 @@ exports.MultiMap = (function(){
 		},
 		adjacent:function( other) {
 			return this.a == other.b+1 || this.b == other.a-1;
+		},
+		properlyContains:function(other) {
+			return other.a >= this.a && other.b <= this.b;
+		},
+		intersection:function(other) {
+			return Interval.of(Math.max(a, other.a), Math.min(b, other.b));
 		},
 		toString:function() {
 			return this.a +".."+ this.b;
@@ -320,7 +256,7 @@ exports.MultiMap = (function(){
 				if ( addition.startsBeforeDisjoint(r) ) {
 					// insert before r
 					i--;
-					iter.add(addition);
+					intervals.splice(i, 0, addition);
 					return;
 				}
 				// if disjoint and after r, a future iteration will handle it
@@ -429,6 +365,123 @@ exports.MultiMap = (function(){
 				}
 			}
 			return 0;
+		},
+		getMaxElement:function(){
+			if ( this.isNil() ) {
+				return 0;
+			}
+			var last = this.intervals[this.intervals.length-1];
+			return last.b;
+		},
+		
+		complement:function(vocabularyIS){
+			if(arguments.length === 2)
+				return this.complement(IntervalSet.of(arguments[0], arguments[1]));
+			
+			if ( vocabularyIS==null ) {
+            return null; // nothing in common with null set
+			}
+			if ( !(vocabularyIS instanceof IntervalSet ) ) {
+				throw new Error("can't complement with non IntervalSet ("+
+												   vocabularyIS+")");
+			}
+			var maxElement = vocabularyIS.getMaxElement();
+	
+			var compl = new IntervalSet();
+			var n = this.intervals.length;
+			if ( n ==0 ) {
+				return compl;
+			}
+			var first = this.intervals[0];
+			// add a range from 0 to first.a constrained to vocab
+			if ( first.a > 0 ) {
+				var s = IntervalSet.of(0, first.a-1);
+				var a = s.and(vocabularyIS);
+				compl.addAll(a);
+			}
+			for (var i=1; i<n; i++) { // from 2nd interval .. nth
+				var previous = this.intervals[i-1];
+				var current = this.intervals[i];
+				var s = IntervalSet.of(previous.b+1, current.a-1);
+				var a = s.and(vocabularyIS);
+				compl.addAll(a);
+			}
+			var last = this.intervals[n -1];
+			// add a range from last.b to maxElement constrained to vocab
+			if ( last.b < maxElement ) {
+				var s = IntervalSet.of(last.b+1, maxElement);
+				var a = s.and(vocabularyIS);
+				compl.addAll(a);
+			}
+			return compl;
+		},
+		
+		and:function(other){
+			if ( other==null ) { //|| !(other instanceof IntervalSet) ) {
+				return null; // nothing in common with null set
+			}
+	
+			var myIntervals = this.intervals;
+			var theirIntervals = other.intervals;
+			var intersection = null;
+			var mySize = myIntervals.length;
+			var theirSize = theirIntervals.length;
+			var i = 0;
+			var j = 0;
+			// iterate down both interval lists looking for nondisjoint intervals
+			while ( i<mySize && j<theirSize ) {
+				var mine = myIntervals[i];
+				var theirs = theirIntervals[j];
+				//System.out.println("mine="+mine+" and theirs="+theirs);
+				if ( mine.startsBeforeDisjoint(theirs) ) {
+					// move this iterator looking for interval that might overlap
+					i++;
+				}
+				else if ( theirs.startsBeforeDisjoint(mine) ) {
+					// move other iterator looking for interval that might overlap
+					j++;
+				}
+				else if ( mine.properlyContains(theirs) ) {
+					// overlap, add intersection, get next theirs
+					if ( intersection==null ) {
+						intersection = new IntervalSet();
+					}
+					intersection.add(mine.intersection(theirs));
+					j++;
+				}
+				else if ( theirs.properlyContains(mine) ) {
+					// overlap, add intersection, get next mine
+					if ( intersection==null ) {
+						intersection = new IntervalSet();
+					}
+					intersection.add(mine.intersection(theirs));
+					i++;
+				}
+				else if ( !mine.disjoint(theirs) ) {
+					// overlap, add intersection
+					if ( intersection==null ) {
+						intersection = new IntervalSet();
+					}
+					intersection.add(mine.intersection(theirs));
+					// Move the iterator of lower range [a..b], but not
+					// the upper range as it may contain elements that will collide
+					// with the next iterator. So, if mine=[0..115] and
+					// theirs=[115..200], then intersection is 115 and move mine
+					// but not theirs as theirs may collide with the next range
+					// in thisIter.
+					// move both iterators to next ranges
+					if ( mine.startsAfterNonDisjoint(theirs) ) {
+						j++;
+					}
+					else if ( theirs.startsAfterNonDisjoint(mine) ) {
+						i++;
+					}
+				}
+			}
+			if ( intersection==null ) {
+				return new IntervalSet();
+			}
+			return intersection;
 		}
     };
 	exports.IntervalSet = IntervalSet;

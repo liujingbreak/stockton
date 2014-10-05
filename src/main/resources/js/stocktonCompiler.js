@@ -3,12 +3,14 @@ var grmParser = require('./stockton-grammar-parser.js'),
 	stUtil = require('./stockton-util.js'),
 	RangeUtil = stUtil.RangeUtil,
 	IntervalSet = require('./misc.js').IntervalSet,
-	Interval = require('./misc.js').Interval;
+	Interval = require('./misc.js').Interval,
+	srt = require('./stocktonRuntime.js'),
+	PredictionContext = srt.PredictionContext,
+	SingletonPredictionContext = srt.SingletonPredictionContext,
+	EmptyPredictionContext = srt.EmptyPredictionContext,
+	ATNConfig = srt.ATNConfig,
+	cycle = require('cycle');
 	
-
-function compile(text){
-	return new Compiler().compile(text);
-}
 /** @class AST */
 AST = {
 	getFirstChildWithType:function(ast, type){
@@ -25,7 +27,8 @@ AST = {
 	}
 };
 
-function Compiler(){
+function Compiler(targetFileName){
+	this.targetName = targetFileName;
 	this.lexRuleASTMap = {};
 	this.lexRuleASTs = [];
 	//this.lexStartState = buildState();
@@ -59,13 +62,12 @@ function Compiler(){
 }
 
 var EPSILON_TYPES = {
-	epsilon: true, range: false, rule: true, predicate: true, action: true,
+	epsilon: true, range: false, rule: true, predicate: true, action: true, 
 	precedence: true, wildcard:false, notSet: false, set: false, atom: false
 };
 	
 function isEpsilon(transition){
-		var yes = EPSILON_TYPES[transition.type];
-		if(yes === undefined){
+		if(!_.has(EPSILON_TYPES, transition.type)){
 			throw new Error('undefined transition type: '+ transition.type);
 		}
 		return EPSILON_TYPES[transition.type];
@@ -108,23 +110,28 @@ Compiler.prototype = {
 	compile:function(text){
 		var parser = grmParser.create(text);
 		var ast = parser.parse().result;
-		
-		
+		var tokenNum = 0;
 		// fetch out all lexer rules: this.lexRuleASTs
 		ast.forEach(function(ruleAst){
 			if(ruleAst.type == 'lexRule'){
 				this.lexRuleASTMap[ruleAst.name] = ruleAst;
 				this.lexRuleASTs.push(ruleAst);
 				if(!ruleAst.fragment){
+					tokenNum++;
 					console.log('find lex rule: %s', ruleAst.name);
 				}
+			}else if(ruleAst.type == 'tokens'){
+				tokenNum += ruleAst.child.length;
 			}
 		}, this);
+		this.atn.maxTokenType = tokenNum;
+		console.log('tokenNum: %d', tokenNum);
 		// CREATE ATN FOR EACH RULE
 		this.createATN();
 		
 		// PERFORM GRAMMAR ANALYSIS ON ATN: BUILD DECISION DFAs
 		this.analysisPipeline();
+		return cycle.decycle(this.atn);
 	},
 	
 	createATN:function(){
@@ -497,7 +504,9 @@ Compiler.prototype = {
 				if(ast.fragment)
 					return;
 				var look = this.LL1Analyzer(this.atn.ruleToStartState[ast.name], null, null);
-				//todo
+				console.log('analysis_processLexer() look = %s\n', look.intervals.join(' , '));
+				if (look.contains(-2))
+					throw new Error('EPSILON_TOKEN in rule: '+ ast.name);
 		}, this);
 	},
 	
@@ -547,7 +556,9 @@ Compiler.prototype = {
 		 });
 		 return ret;
 	},
-	 	
+	
+	HIT_PRED:0,
+	
 	LL1Analyzer:function(s, stopState, ctx){
 		var r = new IntervalSet();
 		var seeThruPreds = true; // ignore preds; get all lookahead
@@ -559,9 +570,11 @@ Compiler.prototype = {
 	LL1Analyzer_look:function(s, stopState, ctx, look, lookBusy, calledRuleStack,
 		seeThruPreds, addEOF)
 	{
+		console.log('LL1Analyzer_look state %d\nlookBusy=%s', s.stateNumber, _.keys(lookBusy).join());
 		var c = new ATNConfig(s, 0, ctx);
 		if(lookBusy.hasOwnProperty(c))
 			return;
+		console.log('LL1Analyzer_look state %d continue', s.stateNumber);
 		lookBusy[c] = true;
 		if (s == stopState) {
 			if (ctx == null) {
@@ -600,6 +613,38 @@ Compiler.prototype = {
 				return;
 			}
 		}
+		var n = s.transitions.length;
+        for (var i=0; i<n; i++) {
+        		var t = s.transitions[i];
+        		if(t.type == 'rule'){
+        			if(_.has(calledRuleStack, t.target.ruleName))
+        				continue;
+        			var newContext = SingletonPredictionContext.create(ctx, t.followState.stateNumber);
+				try{
+					calledRuleStack[t.target.ruleName] = true;
+					this.LL1Analyzer_look(t.target, stopState, newContext, look, lookBusy, calledRuleStack, seeThruPreds, addEOF);
+				}finally {
+					delete calledRuleStack[t.target.ruleName];
+				}
+			}else if(t.type == 'predicate' || t.type == 'precedence'){
+				if ( seeThruPreds )
+					this.LL1Analyzer_look(t.target, stopState, ctx, look, lookBusy, calledRuleStack, seeThruPreds, addEOF);
+				else
+					look.add(this.HIT_PRED);
+        		}else if ( isEpsilon(t) ) {
+				this.LL1Analyzer_look(t.target, stopState, ctx, look, lookBusy, calledRuleStack, seeThruPreds, addEOF);
+			}else if(t.type == 'wildcard'){
+        			look.addAll( IntervalSet.of(1, this.atn.maxTokenType) );
+        		}else{
+        			var set = Transition.label(t);
+				if (set != null) {
+					if (t.type == 'notSet') {
+						set = set.complement(IntervalSet.of(1, this.atn.maxTokenType));
+					}
+					look.addAll(set);
+				}
+        		}
+        }
 	}
 }
 function ATNState(type){
@@ -752,23 +797,6 @@ function _optimizeStates(atn){
 	atn.states.push.apply(atn.states, compressed);
 }
 
-function ATNBuilder(compiler){
-}
-ATNBuilder.prototype = {
-	ruleBlock:function(ast){
-		var alts = _.find(ast.child, function(){
-				return c.type === 'alts';
-		});
-		
-		alts.child.forEach(function(alt){
-				this.alternative(alt);
-		}, this);
-	},
-	alternative:function(ast){
-		
-	}
-};
-
 function getStringFromGrammarStringLiteral(literal){
 	var buf = '';
 	var i = 1; // skip first quote
@@ -917,95 +945,10 @@ LeftRecursionDetector.prototype = {
 	}
 };
 
-function PredictionContext(cachedHashCode){
-	this.cachedHashCode = cachedHashCode;
-}
 
-PredictionContext.fromRuleContext = function(atn, outerContext){
-	if(outerContext == null)
-		outerContext = 'EMPTY';
-	if(outerContext.parent==null || outerContext == 'EMPTY')
-		return 'EMPTY';
-	var parent = PredictionContext.fromRuleContext(atn, outerContext.parent);
-	var state = atn.states[outerContext.invokingState];
-	var transition = state.transitions[0];
-	return new SingletonPredictionContext(parent, transition.followState.stateNumber);
-}
 
-PredictionContext.prototype = {
-	EMPTY_RETURN_STATE: Number.MAX_VALUE,
 
-	isEmpty:function(){
-		return this == PredictionContext.EMPTY;
-	},
-	toString:function(){
-		return this.cachedHashCode;
-	},
-	calculateHashCode:function(parent, returnState){
-		return JSON.stringify({
-			p:parent.toString(),
-			r:returnState
-		});
-	},
-	calculateEmptyHashCode:function(){
-		return '';
-	}
-};
-
-function SingletonPredictionContext(parent, returnState){
-	PredictionContext.call(this, 
-		parent != null? this.calculateHashCode(parent, returnState) : this.calculateEmptyHashCode());
-	if(returnState == -1) throw new Error('Invalid state number');
-	this.parent = parent;
-	this.returnState = returnState;
-}
-SingletonPredictionContext.prototype = _.create(PredictionContext.prototype, {
-
-	size:function(){
-		return 1;
-	},
-	getReturnState:function(){
-		return this.returnState;
-	},
-	getParent:function(index){
-		return this.parent;
-	}
-});
-
-function EmptyPredictionContext(){
-	SingletonPredictionContext.call(this, null, this.EMPTY_RETURN_STATE);
-}
-EmptyPredictionContext.prototype = _.create(SingletonPredictionContext.prototype,{
-		isEmpty:function(){ return true; },
-		size:function() {
-			return 1;
-		},
-		getReturnState:function(index){
-			this.returnState;
-		}
-});
-PredictionContext.EMPTY = new EmptyPredictionContext();
-	
-function ATNConfig(state, alt, context, semanticContext){
-	if(semanticContext === undefined)
-		this.semanticContext = '';
-	this.state = state;
-	this.alt = alt;
-	this.context = context;
-	this._key = JSON.stringify({
-			s:this.state,
-			a:this.alt,
-			c:this.context,
-			s:this.semanticContext
-	});
-}
-ATNConfig.prototype.toString = function(){
-	return this._key;
-}
 
 module.exports = {
-	Compiler: Compiler,
-	PredictionContext: PredictionContext,
-	SingletonPredictionContext: SingletonPredictionContext,
-	EmptyPredictionContext: EmptyPredictionContext
+	Compiler: Compiler
 };

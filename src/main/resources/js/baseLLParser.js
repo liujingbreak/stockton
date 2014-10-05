@@ -290,7 +290,7 @@ Lexer.prototype = {
     create a new type number or return existing type number
     */
     _tokenType:function(stype){
-        if(stype in this.types)
+        if(this.types.hasOwnProperty(stype))
             return this.types[stype];
         var n = this.types[stype] = this.typeIdx ++;
         this.typeNames[n] = stype;
@@ -378,7 +378,12 @@ Parser.prototype = {
     tokenType:function(sType){
         return this.lexer.types[sType];
     },
-    
+    /**
+    call this after parsing process is finished, otherwise you won't get a correct result of a complete token list
+    */
+    getMaxTokenType:function(){
+    		return this.lexer.typeNames.length;
+    },
     //nextToken:function(){
     //    if(!this._next){
     //        this.lexer.moreToken();
