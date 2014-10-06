@@ -19,6 +19,6 @@ options {
         )*
     ;
 
-fragment Null: 'null';
+Null: 'null' { parseKeyword() }?;
 
 Anychar: .;

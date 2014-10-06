@@ -272,7 +272,12 @@ var grammar = {
     block: function(){
         this.advance();
         this.rule('blockContent', false);
+        var content = this.ruleText().substring(1);
         this.match('}');
+        if(this.predToken('?')){
+        		this.advance();
+        		return { type:'sempred', content:content};
+        }
         return null;
     },
     
@@ -365,8 +370,7 @@ var grammar = {
     				type: 'wildcard'
     			};
     		}else if(this.predToken('{')){
-        		this.rule('block');
-        		ret = null;
+        		ret = this.rule('block').result;
     		}else if(this.predToken('options')){
     			this.rule('options');
     			ret = null;

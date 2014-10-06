@@ -314,6 +314,8 @@ Compiler.prototype = {
 					left.addTransition(call);
 					return {left:left, right: right};
 				}
+			case 'sempred':
+				return this._sempred(ast);
 		}
 	},
 	buildLexerATN_child:function(ast, state){
@@ -491,6 +493,28 @@ Compiler.prototype = {
 		return {left: left, right: right};
 	},
 	
+	_sempred:function(pred) {
+		//System.out.println("sempred: "+ pred);
+		var left = this.newState('basic', pred);
+		var right = this.newState('basic', pred);
+
+		var p;
+		//if (pred.getOptionString(LeftRecursiveRuleTransformer.PRECEDENCE_OPTION_NAME) != null) {
+		//	int precedence = Integer.parseInt(pred.getOptionString(LeftRecursiveRuleTransformer.PRECEDENCE_OPTION_NAME));
+		//	p = new PrecedencePredicateTransition(right, precedence);
+		//}
+		//else {
+		//	boolean isCtxDependent = UseDefAnalyzer.actionIsContextDependent(pred);
+		//	p = new PredicateTransition(right, currentRule.index, g.sempreds.get(pred), isCtxDependent);
+		//}
+		//todo
+		p = {type: 'predicate', target: right, ruleName: this.currentRuleName, predContent:pred.content, isCtxDependent:true};
+
+		left.addTransition(p);
+		pred.atnState = left;
+		return {left:left, right:right};
+	},
+	
 	analysisPipeline:function(ast){
 		var lr = new LeftRecursionDetector(ast, this.atn, this);
 		lr.check();
@@ -647,6 +671,7 @@ Compiler.prototype = {
         }
 	}
 }
+
 function ATNState(type){
 	this.type = type;
 	this.transitions = [];

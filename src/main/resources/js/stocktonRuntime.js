@@ -1,5 +1,5 @@
 var _ = require("./lodash.js");
-
+var debug = true;
 function PredictionContext(cachedHashCode){
 	this.cachedHashCode = cachedHashCode;
 }
@@ -109,6 +109,10 @@ function isDecisionState(state){
 }
 
 function LexerATNConfig(obj){
+	if(obj.config)
+		this.initWithConfig(obj.config);
+	delete obj.config;
+	
 	_.extend(this, obj);
 	this.passedThroughNonGreedyDecision = this.checkNonGreedyDecision(
 		this.checkNonGreedyDecision, this.state);
@@ -122,6 +126,14 @@ function LexerATNConfig(obj){
 	});
 }
 LexerATNConfig.prototype = _.create(ATNConfig.prototype, {
+		initWithConfig: function(config){
+			this.alt = config.alt;
+			this.semanticContext = config.semanticContext;
+			this.reachesIntoOuterContext = config.reachesIntoOuterContext;
+			this.lexerActionExecutor = config.lexerActionExecutor;
+			this.passedThroughNonGreedyDecision = config.passedThroughNonGreedyDecision;
+		},
+		
 		checkNonGreedyDecision:function(checkNonGreedyDecision, target){
 			return checkNonGreedyDecision || isDecisionState(target);
 			// we only support nonGreedy
@@ -164,6 +176,7 @@ function DFAState(configs){
 
 function ATNConfigSet(){
 	this.obj = {};
+	this.hasSemanticContext = false;
 }
 
 ATNConfigSet.prototype = {
@@ -181,10 +194,53 @@ ATNSimulator.ERROR = new DFAState(new ATNConfigSet());
 ATNSimulator.ERROR.stateNumber = Number.MAX_VALUE;
 
 ATNSimulator.prototype ={
+	
+};
+
+
+function LexerATNSimulator(){
+	this.mode = 0;//todo
+	this.decisionToDFA = [];
+}
+
+LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
+	matchATN:function(input){
+		var startState = this.atn.states[0];
+		if ( debug ) {
+			console.log("matchATN mode %d start: %s\n", this.mode, startState);
+		}
+		var old_mode = mode;
+		var s0_closure = this.computeStartState(input, startState);
+		var suppressEdge = s0_closure.hasSemanticContext;
+		var next = this.addDFAState(s0_closure);
+		if (!suppressEdge) {
+			this.decisionToDFA[mode].s0 = next;
+		}
+
+		var predict = this.execATN(input, next);
+
+		if ( debug ) {
+			console.log( "DFA after matchATN: %s\n", this.decisionToDFA[old_mode].toString());
+		}
+
+		return predict;
+	},
+	
+	execATN: function(lex){
+		//todo
+	},
+	
+	computeStartState:function(input, startState){
+		//todo
+	},
+	
+	addDFAState:function(){
+		
+	},
 	/**
 	@param input baseLLParser's lex object
 	*/
-	closure:function(input, config, currentAltReachedAcceptState, speculative){
+	closure:function(input, config, configs, currentAltReachedAcceptState, speculative){
 		if ( debug ) {
 			console.log("closure("+config.toString()+")");
 		}
@@ -198,13 +254,9 @@ ATNSimulator.prototype ={
 				}
 				else {
 					configs.add(new LexerATNConfig({
+						config: config,
 						state: config.state,
-						alt: config.alt,
-						context:PredictionContext.EMPTY,
-						semanticContext: config.semanticContext,
-						reachesIntoOuterContext: config.reachesIntoOuterContext,
-						lexerActionExecutor:config.lexerActionExecutor,
-						passedThroughNonGreedyDecision: config.passedThroughNonGreedyDecision
+						context:PredictionContext.EMPTY
 					}));
 					currentAltReachedAcceptState = true;
 				}
@@ -250,20 +302,63 @@ ATNSimulator.prototype ={
 	getEpsilonTarget:function(input, config, t, configs, speculative){
 		c = null;
 		switch (t.type) {
-		case 'rule':
-			
+			case 'rule':
+				var newContext =
+						SingletonPredictionContext.create(config.context, t.followState.stateNumber);
+					c = new LexerATNConfig({config: config, state:t.target, context: newContext});
+					break;
+			case 'precedence':
+				throw new Error("Precedence predicates are not supported in lexers.");
+			case 'predicate':
+				/*  Track traversing semantic predicates. If we traverse,
+				 we cannot add a DFA state for this "reach" computation
+				 because the DFA would not test the predicate again in the
+				 future. Rather than creating collections of semantic predicates
+				 like v3 and testing them on prediction, v4 will test them on the
+				 fly all the time using the ATN not the DFA. This is slower but
+				 semantically it's not used that often. One of the key elements to
+				 this predicate mechanism is not adding DFA states that see
+				 predicates immediately afterwards in the ATN. For example,
+
+				 a : ID {p1}? | ID {p2}? ;
+
+				 should create the start state for rule 'a' (to save start state
+				 competition), but should not create target of ID state. The
+				 collection of ATN states the following ID references includes
+				 states reached by traversing predicates. Since this is when we
+				 test them, we cannot cash the DFA state target of ID.
+			 */
+			 	var pt = t;
+				if ( debug ) {
+					console.log("EVAL rule "+pt.ruleName+":"+pt.predIndex);
+				}
+				configs.hasSemanticContext = true;
+				if (this.evaluatePredicate(input, pt.ruleIndex, pt.predContent, speculative)) {
+					c = new LexerATNConfig({config: config, state:t.target});
+				}
+				break;
+			case 'action':
+				if (config.context == null || config.context.hasEmptyPath()) {
+					// execute actions anywhere in the start rule for a token.
+					//todo
+					var lexerActionExecutor = LexerActionExecutor.append(config.lexerActionExecutor, t.actionContent);
+					c = new LexerATNConfig({config: config, state: t.target, lexerActionExecutor:lexerActionExecutor});
+					break;
+				}else {
+					// ignore actions in referenced rules
+					c = new LexerATNConfig({config: config, state: t.target});
+					break;
+				}
+			case 'epsilon':
+				c = new LexerATNConfig({config: config, state:t.target});
+				break;
 		}
-	}
-};
-
-
-function LexerATNSimulator(){
+	},
 	
-}
-
-LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
-	execATN: function(lex){
-		
+	evaluatePredicate:function(input, ruleName, predContent, speculative){
+		//todo
+		console.log('evaluatePredicate() --> %s', predContent);
+		return true;
 	}
 });
 
