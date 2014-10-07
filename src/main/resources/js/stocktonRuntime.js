@@ -234,8 +234,12 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 		//todo
 	},
 	
-	addDFAState:function(){
-		
+	addDFAState:function(configs){
+		if(configs.hasSemanticContext)
+			throw new Error('configs.hasSemanticContext can\'t be true in here');
+		var proposed = new DFAState(configs);
+		var firstConfigWithRuleStopState = null;
+		//todo
 	},
 	/**
 	@param input baseLLParser's lex object
