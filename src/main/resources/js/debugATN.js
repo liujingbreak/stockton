@@ -1,5 +1,5 @@
 var fs = require('fs');
-var _ = require('./lodash');
+var _ = require('lodash');
 
 var fname = 'ATNGraph.html';
 var row = 0;

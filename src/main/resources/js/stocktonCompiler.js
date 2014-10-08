@@ -1,5 +1,5 @@
 var grmParser = require('./stockton-grammar-parser.js'),
-	_ = require("./lodash.js"),
+	_ = require("lodash"),
 	stUtil = require('./stockton-util.js'),
 	RangeUtil = stUtil.RangeUtil,
 	IntervalSet = require('./misc.js').IntervalSet,

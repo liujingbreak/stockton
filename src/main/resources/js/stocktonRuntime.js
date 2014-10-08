@@ -1,4 +1,4 @@
-var _ = require("./lodash.js");
+var _ = require("lodash");
 var debug = true;
 function PredictionContext(cachedHashCode){
 	this.cachedHashCode = cachedHashCode;
@@ -13,7 +13,12 @@ PredictionContext.fromRuleContext = function(atn, outerContext){
 	var state = atn.states[outerContext.invokingState];
 	var transition = state.transitions[0];
 	return new SingletonPredictionContext(parent, transition.followState.stateNumber);
-}
+};
+
+PredictionContext.merge = function(){
+	//todo
+};
+
 PredictionContext.EMPTY_RETURN_STATE = Number.MAX_VALUE;
 PredictionContext.prototype = {
 	EMPTY_RETURN_STATE: PredictionContext.EMPTY_RETURN_STATE,
@@ -174,16 +179,53 @@ function DFAState(configs){
 	this.configs = configs;
 }
 
+function ConfigHashSet(){
+	
+}
+
+
 function ATNConfigSet(){
 	this.obj = {};
+	this.configs = [];
 	this.hasSemanticContext = false;
+	this.readonly = false;
+	this.fullCtx = true;
+	this.configLookup = null;
 }
 
 ATNConfigSet.prototype = {
-	add:function(o){
-		this.obj[o] = true;
+	add:function(config, mergeCache){
+		if ( this.readonly ) throw new Error("This set is readonly");
+		if ( config.semanticContext!=SemanticContext.NONE ) {
+			this.hasSemanticContext = true;
+		}
+		if (config.reachesIntoOuterContext > 0) {
+			this.dipsIntoOuterContext = true;
+		}
+		if(!this.configLookup.hasOwnProperty(config)){
+			this.cachedHashCode = -1;
+			this.configs.push(config);  // track order here
+			return true;
+		}
+		var existing = this.configLookup[config];
+		// a previous (s,i,pi,_), merge with it and save result
+		var rootIsWildcard = !this.fullCtx;
+		var merged =
+			PredictionContext.merge(existing.context, config.context, rootIsWildcard, mergeCache);
+		// no need to check for existing.context, config.context in cache
+		// since only way to create new graphs is "call rule" and here. We
+		// cache at both places.
+		existing.reachesIntoOuterContext =
+			Math.max(existing.reachesIntoOuterContext, config.reachesIntoOuterContext);
+		existing.context = merged; // replace context; no need to alt mapping
+		return true;
 	}
 };
+
+function OrderedATNConfigSet(){
+	this.configLookup = {};
+}
+OrderedATNConfigSet.prototype = _.create(ATNConfigSet.prototype);
 
 function ATNSimulator(atn, sharedContextCache){
 	this.atn = atn;
