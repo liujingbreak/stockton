@@ -109,6 +109,7 @@ Compiler.prototype = {
 	
 	compile:function(text){
 		var parser = grmParser.create(text);
+		this.grammar = parser;
 		var ast = parser.parse().result;
 		var tokenNum = 0;
 		// fetch out all lexer rules: this.lexRuleASTs
@@ -139,6 +140,8 @@ Compiler.prototype = {
 		// since I don't want to support MODE at this moment, there is only 1 start state needed
 		this.atn.startState = this.newState('tokensStart');
 		// INIT ACTION, RULE->TOKEN_TYPE MAP
+		this.atn.ruleToTokenType = this.grammar.lexer.types;
+		
 		// CREATE ATN FOR EACH RULE
 		this._createATN(this.lexRuleASTs);
 		// atn.lexerActions = new LexerAction[indexToActionMap.size()];
@@ -146,7 +149,7 @@ Compiler.prototype = {
 		// 	atn.lexerActions[entry.getKey()] = entry.getValue();
 		// }
 		// LINK MODE START STATE TO EACH TOKEN RULE
-		this.lexRuleASTs.forEach(function(ruleAST){
+		this.lexRuleASTs.forEach(function(ruleAST){ 
 				if(!ruleAST.fragment){
 					var s = this.atn.ruleToStartState[ruleAST.name];
 					this._epsilon(this.atn.startState, s);

@@ -130,6 +130,7 @@ function LexerATNConfig(obj){
 			l:this.lexerActionExecutor? this.lexerActionExecutor.toString() : null
 	});
 }
+
 LexerATNConfig.prototype = _.create(ATNConfig.prototype, {
 		initWithConfig: function(config){
 			this.alt = config.alt;
@@ -179,18 +180,24 @@ function DFAState(configs){
 	this.configs = configs;
 }
 
+DFAState.prototype ={
+	toString:function(){
+		return this.configs.toString();
+	}
+};
+
 function ConfigHashSet(){
 	
 }
 
 
 function ATNConfigSet(){
-	this.obj = {};
 	this.configs = [];
 	this.hasSemanticContext = false;
 	this.readonly = false;
 	this.fullCtx = true;
-	this.configLookup = null;
+	this.cachedHashCode = -1;
+	//this.configLookup = null;
 }
 
 ATNConfigSet.prototype = {
@@ -219,10 +226,27 @@ ATNConfigSet.prototype = {
 			Math.max(existing.reachesIntoOuterContext, config.reachesIntoOuterContext);
 		existing.context = merged; // replace context; no need to alt mapping
 		return true;
+	},
+	
+	setReadonly:function(b){
+		this.readonly = b;
+		delete this.configLookup;
+	},
+	
+	toString:function(){
+		if(this.readonly){
+			if (this.cachedHashCode === -1) {
+				this.cachedHashCode = this.configs.join();
+			}
+
+			return this.cachedHashCode;
+		}
+		return this.configs.join();
 	}
 };
 
 function OrderedATNConfigSet(){
+	ATNConfigSet.call(this);
 	this.configLookup = {};
 }
 OrderedATNConfigSet.prototype = _.create(ATNConfigSet.prototype);
@@ -240,29 +264,41 @@ ATNSimulator.prototype ={
 };
 
 
-function LexerATNSimulator(){
+function LexerATNSimulator(atn, decisionToDFA, sharedContextCache){
+	ATNSimulator.call(this, atn, sharedContextCache);
 	this.mode = 0;//todo
-	this.decisionToDFA = [];
+	this.decisionToDFA = decisionToDFA;
 }
 
 LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
-	matchATN:function(input){
-		var startState = this.atn.states[0];
-		if ( debug ) {
-			console.log("matchATN mode %d start: %s\n", this.mode, startState);
+	match:function(input, mode){
+		this.mode = mode;
+		var dfa = this.decisionToDFA[mode];
+		if ( dfa.s0==null ) {
+			return this.matchATN(input);
 		}
-		var old_mode = mode;
+		else {
+			return this.execATN(input, dfa.s0);
+		}
+	},
+	
+	matchATN:function(input){
+		var startState = this.atn.states[this.mode];
+		if ( debug ) {
+			console.log("matchATN() mode %d start: %s\n", this.mode, startState);
+		}
+		var old_mode = this.mode;
 		var s0_closure = this.computeStartState(input, startState);
 		var suppressEdge = s0_closure.hasSemanticContext;
 		var next = this.addDFAState(s0_closure);
 		if (!suppressEdge) {
-			this.decisionToDFA[mode].s0 = next;
-		}
-
+			this.decisionToDFA[this.mode].s0 = next;
+		}debugger;
+		console.log('suppressEdge: %j, s0 = %s\ns0_closure = %s', suppressEdge, next+'', s0_closure.toString());
 		var predict = this.execATN(input, next);
 
 		if ( debug ) {
-			console.log( "DFA after matchATN: %s\n", this.decisionToDFA[old_mode].toString());
+			console.log( "matchATN() DFA after matchATN: %s\n", this.decisionToDFA[old_mode]);
 		}
 
 		return predict;
@@ -270,10 +306,24 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 	
 	execATN: function(lex){
 		//todo
+		return 0;
 	},
-	
-	computeStartState:function(input, startState){
-		//todo
+	/** 
+	@param p ATNState
+	*/
+	computeStartState:function(input, p){
+		var initialContext = PredictionContext.EMPTY;
+		var configs = new OrderedATNConfigSet();
+		for (var i=0, l=p.transitions.length; i< l; i++) {
+			var target = p.transitions[i].target;
+			var c = new LexerATNConfig({
+				state:target, alt: i+1, context:initialContext,
+				semanticContext: SemanticContext.NONE,
+				passedThroughNonGreedyDecision: false
+			});
+			this.closure(input, c, configs, false, false);
+		}
+		return configs;
 	},
 	
 	addDFAState:function(configs){
@@ -281,7 +331,29 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 			throw new Error('configs.hasSemanticContext can\'t be true in here');
 		var proposed = new DFAState(configs);
 		var firstConfigWithRuleStopState = null;
-		//todo
+		_.some(configs.configs, function(c){
+				if(c.state.type == 'ruleStop'){
+					firstConfigWithRuleStopState = c;
+					return true;
+				}
+		});
+		if ( firstConfigWithRuleStopState ){
+			proposed.isAcceptState = true;
+			proposed.lexerActionExecutor = firstConfigWithRuleStopState.lexerActionExecutor;
+			proposed.prediction = this.atn.ruleToTokenType[firstConfigWithRuleStopState.state.ruleName];
+		}
+		var dfa = this.decisionToDFA[this.mode];
+		var existing = dfa.states[proposed];
+		if ( existing!=null ) return existing;
+        
+		var newState = proposed;
+        
+		newState.stateNumber = _.size(dfa.states);
+		configs.setReadonly(true);
+		newState.configs = configs;
+		dfa.states[newState] = newState;
+		console.log('addDFAState() newState = %s', newState);
+		return newState;
 	},
 	/**
 	@param input baseLLParser's lex object
@@ -414,10 +486,14 @@ function DFA(json){
 }
 
 function generateLexer(atn){
-	var decisionToDFA = [], i = 0;
+	var _decisionToDFA = [], i = 0;
 	atn.decisionToState.forEach(function(s){
-		decisionToDFA.push(new DFA({atnStartState: s, decision: i}));
+		_decisionToDFA.push(new DFA({atnStartState: s, decision: i}));
 	});
+	var _interp = new LexerATNSimulator(atn, _decisionToDFA, null);
+	return function nextToken(lex, c){
+		var type = _interp.match(this, 0);
+	}
 }
 
 module.exports = {
