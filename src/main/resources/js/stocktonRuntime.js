@@ -271,6 +271,10 @@ function LexerATNSimulator(atn, decisionToDFA, sharedContextCache){
 }
 
 LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
+		
+	MIN_DFA_EDGE: 0,
+	MAX_DFA_EDGE: 127,
+	
 	match:function(input, mode){
 		this.mode = mode;
 		var dfa = this.decisionToDFA[mode];
@@ -304,9 +308,36 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 		return predict;
 	},
 	
-	execATN: function(lex){
-		//todo
+	execATN: function(input, ds0){
+		if ( debug ) {
+			console.log("execATN() start state closure=%s\n", ds0.configs);
+		}
+		var t = input.la(1);
+		var s = ds0; // s is current/from DFA state
+		while ( true ) { // while more work
+			if ( debug ) {
+				console.log("execATN() execATN loop starting closure: %s\n", s.configs);
+			}
+			var target = this.getExistingTargetState(s, t);
+			if (target == null) {
+				target = this.computeTargetState(input, s, t);
+			}
+		}
 		return 0;
+	},
+	
+	getExistingTargetState:function(s, t){
+		if (s.edges == null || t < this.MIN_DFA_EDGE || t > this.MAX_DFA_EDGE) {
+			return null;
+		}
+
+		var target = s.edges[t - this.MIN_DFA_EDGE];
+		if (debug && target != null) {
+			console.log("getExistingTargetState() "+s.stateNumber+
+							   " edge to "+target.stateNumber);
+		}
+
+		return target;
 	},
 	/** 
 	@param p ATNState
@@ -324,6 +355,46 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 			this.closure(input, c, configs, false, false);
 		}
 		return configs;
+	},
+	
+	computeTargetState:function(input, s, t){
+		var reach = new OrderedATNConfigSet();
+
+		// if we don't find an existing DFA state
+		// Fill reach starting from closure, following t transitions
+		this.getReachableConfigSet(input, s.configs, reach, t);
+
+		if ( reach.isEmpty() ) { // we got nowhere on t from s
+			if (!reach.hasSemanticContext) {
+				// we got nowhere on t, don't throw out this knowledge; it'd
+				// cause a failover from DFA later.
+				this.addDFAEdge(s, t, ERROR);
+			}
+
+			// stop when we can't match any more char
+			return ERROR;
+		}
+
+		// Add an edge from s to target DFA found/created for reach
+		return this.addDFAEdge(s, t, reach);
+	},
+	
+	getReachableConfigSet:function(input, closure, reach, t){
+		var skipAlt = 0;
+		_.each(closure.configs, function(c){
+			var currentAltReachedAcceptState = c.alt == skipAlt;
+			if (currentAltReachedAcceptState && c.passedThroughNonGreedyDecision) {
+				return;
+			}
+			if(debug)
+				console.log('getReachableConfigSet() testing %s at %s\n', t, c.toString());
+			var n = c.state.transitions.length;
+			for (var ti=0; ti<n; ti++) {
+				var trans = c.state.transitions[ti];
+			}
+			var target = this.getReachableTarget(trans, t);
+			//todo
+		});
 	},
 	
 	addDFAState:function(configs){
@@ -479,6 +550,37 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 		return true;
 	}
 });
+
+var RETURN_FALSE = function(){
+		return false;
+	};
+	
+var TransitionMatches = {
+	precedence: RETURN_FALSE,
+	predicate: RETURN_FALSE,
+	epsilon: RETURN_FALSE,
+	action: RETURN_FALSE,
+	atom:function(tran, symbol){
+		return trans.label == symbol;
+	},
+	range:function(tran, symbol, minVocabSymbol, maxVocabSymbol) {
+		return symbol >= tran.from && symbol <= tran.to;
+	},
+	rule: RETURN_FALSE,
+	
+	set:function(tran, symbol){
+		return tran.set.contains(symbol);
+	},
+	
+	notSet:function(tran, symbol, minVocabSymbol, maxVocabSymbol){
+		return symbol >= minVocabSymbol && symbol <= maxVocabSymbol &&
+			!TransitionMatches.set(tran, symbol, minVocabSymbol, maxVocabSymbol);
+	},
+	
+	wildcard:function(tran, symbol, minVocabSymbol, maxVocabSymbol){
+		return symbol >= minVocabSymbol && symbol <= maxVocabSymbol;
+	}
+};
 
 function DFA(json){
 	_.extend(this, json);
