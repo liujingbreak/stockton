@@ -391,10 +391,20 @@ LexerATNSimulator.prototype = _.create(ATNSimulator.prototype, {
 			var n = c.state.transitions.length;
 			for (var ti=0; ti<n; ti++) {
 				var trans = c.state.transitions[ti];
+				var target = this.getReachableTarget(trans, t);
+				//todo
 			}
-			var target = this.getReachableTarget(trans, t);
+			
 			//todo
 		});
+	},
+	
+	getReachableTarget:function(trans, t){
+		if (trans.matches(t, Character.MIN_VALUE, Character.MAX_VALUE)) {
+			return trans.target;
+		}
+
+		return null;
 	},
 	
 	addDFAState:function(configs){
@@ -579,6 +589,12 @@ var TransitionMatches = {
 	
 	wildcard:function(tran, symbol, minVocabSymbol, maxVocabSymbol){
 		return symbol >= minVocabSymbol && symbol <= maxVocabSymbol;
+	}
+};
+
+Transition = {
+	matches:function(tran, moreArgs){
+		return TransitionMatches[tran.type].apply(tran, _.toArray(arguments).slice(1));
 	}
 };
 
